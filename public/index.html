@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Gestión de Facturas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>Gestión de Facturas</h1>
+  <nav>
+    <button class="tab-btn active" data-tab="cargar">Cargar factura</button>
+    <button class="tab-btn" data-tab="objetos">Objetos de costo</button>
+    <button class="tab-btn" data-tab="imputar">Imputar</button>
+    <button class="tab-btn" data-tab="resumen">Resumen por proveedor</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===================== TAB: CARGAR FACTURA ===================== -->
+  <section id="tab-cargar" class="tab-content active">
+    <h2>Cargar factura</h2>
+    <p class="hint">Subí el PDF de la factura. El navegador va a leer el código QR de AFIP
+      (datos fiscales) y el texto del PDF (para intentar detectar los ítems).
+      Todo lo detectado es editable antes de guardar.</p>
+
+    <input type="file" id="input-pdf" accept="application/pdf">
+    <div id="estado-parseo" class="hint"></div>
+
+    <div id="bloque-cabecera" style="display:none">
+      <h3>Datos de la factura (del QR de AFIP)</h3>
+      <div class="grid-form">
+        <label>CUIT proveedor <input id="f-cuit" type="text"></label>
+        <label>Tipo de comprobante <input id="f-tipo" type="text" placeholder="ej: 006"></label>
+        <label>Punto de venta <input id="f-ptovta" type="text"></label>
+        <label>Número <input id="f-numero" type="text"></label>
+        <label>Fecha (YYYY-MM-DD) <input id="f-fecha" type="text"></label>
+        <label>Importe total <input id="f-total" type="number" step="0.01"></label>
+        <label>CAE <input id="f-cae" type="text"></label>
+      </div>
+
+      <h3>Ítems detectados</h3>
+      <p class="hint">Revisá y corregí lo que haga falta. Podés agregar filas manualmente.</p>
+      <table id="tabla-items">
+        <thead>
+          <tr>
+            <th>Descripción</th><th>Cantidad</th><th>Unidad</th>
+            <th>Precio unit.</th><th>% IVA</th><th>Subtotal</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button id="btn-agregar-item" type="button">+ Agregar ítem</button>
+
+      <div class="acciones">
+        <button id="btn-guardar-factura" type="button" class="primary">Guardar factura</button>
+      </div>
+      <div id="resultado-guardado" class="hint"></div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: OBJETOS DE COSTO ===================== -->
+  <section id="tab-objetos" class="tab-content">
+    <h2>Objetos de costo</h2>
+    <p class="hint">Maquinaria, vehículos, lotes de campo o gastos generales de la empresa.</p>
+
+    <div class="grid-form">
+      <label>Tipo
+        <select id="oc-tipo">
+          <option value="maquinaria">Maquinaria</option>
+          <option value="vehiculo">Vehículo</option>
+          <option value="lote">Lote de campo</option>
+          <option value="gasto_general">Gasto general</option>
+        </select>
+      </label>
+      <label>Nombre <input id="oc-nombre" type="text" placeholder="ej: Tractor John Deere 6110J"></label>
+      <label>Identificador <input id="oc-identificador" type="text" placeholder="patente / nro interno / código de lote"></label>
+    </div>
+    <button id="btn-crear-objeto" type="button" class="primary">Crear</button>
+
+    <h3>Listado</h3>
+    <table id="tabla-objetos">
+      <thead><tr><th>Tipo</th><th>Nombre</th><th>Identificador</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- ===================== TAB: IMPUTAR ===================== -->
+  <section id="tab-imputar" class="tab-content">
+    <h2>Imputar ítems a objetos de costo</h2>
+    <label>Factura ID <input id="imp-factura-id" type="number"></label>
+    <button id="btn-cargar-items-imputar" type="button">Buscar ítems</button>
+
+    <table id="tabla-imputar">
+      <thead>
+        <tr><th>Descripción</th><th>Subtotal</th><th>Ya imputado</th><th>Objeto de costo</th><th>Cantidad / %</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="resultado-imputacion" class="hint"></div>
+  </section>
+
+  <!-- ===================== TAB: RESUMEN ===================== -->
+  <section id="tab-resumen" class="tab-content">
+    <h2>Resumen de cuenta por proveedor</h2>
+    <label>Proveedor ID <input id="res-proveedor-id" type="number"></label>
+    <button id="btn-ver-resumen" type="button">Ver resumen</button>
+    <div id="resumen-resultado"></div>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

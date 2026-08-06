@@ -1,0 +1,14 @@
+{
+  "name": "sistema-facturas",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1=DB --r2=FACTURAS_BUCKET",
+    "deploy": "wrangler pages deploy public",
+    "db:init": "wrangler d1 execute facturas-db --file=./schema/schema.sql",
+    "db:init:remote": "wrangler d1 execute facturas-db --remote --file=./schema/schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}

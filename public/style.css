@@ -1,0 +1,96 @@
+:root {
+  --verde: #3f6b4f;
+  --verde-suave: #eaf1ec;
+  --borde: #dedcd3;
+  --texto-muted: #6b6f6a;
+  --bg: #f6f5f1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: #1f2320;
+}
+
+header {
+  background: #fff;
+  border-bottom: 1px solid var(--borde);
+  padding: 20px 24px 0;
+}
+header h1 { margin: 0 0 14px; font-size: 20px; }
+
+nav { display: flex; gap: 4px; }
+.tab-btn {
+  border: none;
+  background: none;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--texto-muted);
+  border-bottom: 2px solid transparent;
+}
+.tab-btn.active {
+  color: var(--verde);
+  border-bottom-color: var(--verde);
+  font-weight: 600;
+}
+
+main { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+h2 { margin-top: 0; }
+.hint { color: var(--texto-muted); font-size: 13.5px; }
+
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
+input, select {
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+th, td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--borde);
+  text-align: left;
+  font-size: 13.5px;
+}
+th { background: var(--verde-suave); color: var(--verde); font-size: 11.5px; text-transform: uppercase; }
+td input, td select { width: 100%; padding: 5px 6px; font-size: 13px; }
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--borde);
+  background: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+button.primary {
+  background: var(--verde);
+  color: #fff;
+  border-color: var(--verde);
+}
+
+.acciones { margin-top: 16px; }
+
+#estado-parseo { margin: 10px 0; }

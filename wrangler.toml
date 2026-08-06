@@ -1,0 +1,17 @@
+name = "sistema-facturas"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "public"
+
+# Base de datos D1 — creála con:
+#   wrangler d1 create facturas-db
+# y pegá el database_id que te devuelva acá abajo.
+[[d1_databases]]
+binding = "DB"
+database_name = "facturas-db"
+database_id = "REEMPLAZAR_CON_TU_DATABASE_ID"
+
+# Bucket R2 para los PDFs originales — creálo con:
+#   wrangler r2 bucket create facturas-pdfs
+[[r2_buckets]]
+binding = "FACTURAS_BUCKET"
+bucket_name = "facturas-pdfs"
