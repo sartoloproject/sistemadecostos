@@ -74,7 +74,8 @@ CREATE TABLE factura_items (
     unidad_medida       TEXT NOT NULL,
     precio_unitario     REAL NOT NULL,
     alicuota_iva        REAL NOT NULL,
-    subtotal            REAL NOT NULL,
+    subtotal            REAL NOT NULL,          -- neto, sin IVA
+    subtotal_con_iva    REAL,                   -- con IVA incluido (si se pudo detectar)
     imputado_completo   INTEGER NOT NULL DEFAULT 0
 );
 

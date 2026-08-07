@@ -97,8 +97,8 @@ export async function onRequestPost({ request, env }) {
     await env.DB
       .prepare(
         `INSERT INTO factura_items (factura_id, descripcion, cantidad, unidad_medida,
-                                     precio_unitario, alicuota_iva, subtotal)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+                                     precio_unitario, alicuota_iva, subtotal, subtotal_con_iva)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         factura.id,
@@ -107,7 +107,8 @@ export async function onRequestPost({ request, env }) {
         item.unidad_medida,
         item.precio_unitario,
         item.alicuota_iva,
-        item.subtotal
+        item.subtotal,
+        item.subtotal_con_iva ?? null
       )
       .run();
   }

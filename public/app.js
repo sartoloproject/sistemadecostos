@@ -140,6 +140,7 @@ function mapearColumnasItem(nums) {
         precio_unitario: nums[1],
         subtotal: nums[2],
         alicuota_iva: posibleAlicuota,
+        subtotal_con_iva: nums[4],
       };
     }
   }
@@ -150,6 +151,7 @@ function mapearColumnasItem(nums) {
     precio_unitario: nums[nums.length - 2],
     subtotal: nums[nums.length - 1],
     alicuota_iva: 21,
+    subtotal_con_iva: null,
   };
 }
 
@@ -231,7 +233,7 @@ function intentarDetectarItems(texto) {
     if (!esMayoritariamenteMayusculas(descripcion)) continue;
 
     const nums = coincidencias.slice(coincidencias.length - cantColumnas).map((m) => aNumero(m[0]));
-    const { cantidad, precio_unitario, subtotal, alicuota_iva } = mapearColumnasItem(nums);
+    const { cantidad, precio_unitario, subtotal, alicuota_iva, subtotal_con_iva } = mapearColumnasItem(nums);
 
     items.push({
       descripcion,
@@ -240,6 +242,7 @@ function intentarDetectarItems(texto) {
       precio_unitario: precio_unitario || 0,
       alicuota_iva: alicuota_iva,
       subtotal: subtotal || 0,
+      subtotal_con_iva: subtotal_con_iva || null,
     });
   }
 
@@ -285,6 +288,7 @@ function agregarFilaItem(item = {}) {
     <td><input class="c-precio" type="number" step="0.0001" value="${item.precio_unitario ?? ""}"></td>
     <td><input class="c-iva" type="number" step="0.01" value="${item.alicuota_iva ?? 21}"></td>
     <td><input class="c-subtotal" type="number" step="0.01" value="${item.subtotal ?? ""}"></td>
+    <td><input class="c-subtotal-con-iva" type="number" step="0.01" value="${item.subtotal_con_iva ?? ""}"></td>
     <td><button type="button" class="btn-quitar">✕</button></td>
   `;
   tr.querySelector(".btn-quitar").addEventListener("click", () => tr.remove());
@@ -303,6 +307,7 @@ function leerItemsDeTabla() {
       precio_unitario: parseFloat(tr.querySelector(".c-precio").value) || 0,
       alicuota_iva: parseFloat(tr.querySelector(".c-iva").value) || 0,
       subtotal: parseFloat(tr.querySelector(".c-subtotal").value) || 0,
+      subtotal_con_iva: parseFloat(tr.querySelector(".c-subtotal-con-iva").value) || null,
     }))
     .filter((it) => it.descripcion);
 }
