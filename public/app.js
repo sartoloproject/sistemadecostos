@@ -38,9 +38,10 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
     for (let numPagina = 1; numPagina <= pdf.numPages; numPagina++) {
       const pagina = await pdf.getPage(numPagina);
 
-      // --- texto de la página ---
+      // --- texto de la página (reconstruyendo líneas por posición) ---
       const contenidoTexto = await pagina.getTextContent();
-      textoCompleto += contenidoTexto.items.map((it) => it.str).join(" ") + "\n";
+      const lineasPagina = reconstruirLineas(contenidoTexto.items);
+      textoCompleto += lineasPagina.join("\n") + "\n";
 
       // --- buscar QR renderizando la página a un canvas ---
       if (!qrDetectado) {
@@ -78,6 +79,42 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
     estado.textContent = "Error leyendo el PDF: " + err.message;
   }
 });
+
+// pdf.js devuelve cada fragmento de texto con su posición (transform[5] = coordenada Y).
+// Sin esto, todo el texto de la página queda como una sola línea gigante y el detector
+// de ítems no puede distinguir la fila de la tabla del resto de la factura.
+function reconstruirLineas(items) {
+  const ordenados = [...items].sort(
+    (a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]
+  );
+
+  const TOLERANCIA_Y = 2; // px de margen para considerar que dos fragmentos están en la misma línea
+  const lineas = [];
+  let lineaActual = [];
+  let yActual = null;
+
+  for (const item of ordenados) {
+    const y = item.transform[5];
+    if (yActual === null || Math.abs(y - yActual) <= TOLERANCIA_Y) {
+      lineaActual.push(item);
+      if (yActual === null) yActual = y;
+    } else {
+      lineas.push(lineaActual);
+      lineaActual = [item];
+      yActual = y;
+    }
+  }
+  if (lineaActual.length) lineas.push(lineaActual);
+
+  return lineas.map((linea) =>
+    linea
+      .sort((a, b) => a.transform[4] - b.transform[4])
+      .map((it) => it.str)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
 
 function decodificarQrAfip(contenidoQr) {
   try {
@@ -122,8 +159,13 @@ function intentarDetectarItems(texto) {
   const items = [];
 
   const regexNumero = /-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,4})?/g;
+  const PALABRAS_EXCLUIDAS = /cuit|fecha|domicilio|numero|número|cond\.|ing\. bruto|inic\. act|pedido|neto grava|exento|vencimiento|c\.u\.i\.t/i;
 
   for (const linea of lineas) {
+    // las líneas de datos de cabecera son del tipo "Campo: valor" -> se descartan
+    if (linea.includes(":")) continue;
+    if (PALABRAS_EXCLUIDAS.test(linea)) continue;
+
     const numeros = linea.match(regexNumero);
     if (!numeros || numeros.length < 3) continue;
 
