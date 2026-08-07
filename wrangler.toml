@@ -10,8 +10,3 @@ binding = "DB"
 database_name = "facturas-db"
 database_id = "c6c56169-ff3e-42d0-91aa-5224e4eebe31"
 
-# Bucket R2 para los PDFs originales — creálo con:
-#   wrangler r2 bucket create facturas-pdfs
-[[r2_buckets]]
-binding = "FACTURAS_BUCKET"
-bucket_name = "facturas-pdfs"
