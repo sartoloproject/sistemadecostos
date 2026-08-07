@@ -116,6 +116,54 @@ function reconstruirLineas(items) {
   );
 }
 
+// Las descripciones de producto en facturas AR suelen ir en mayúsculas;
+// los párrafos de texto legal (pie de página) son oraciones normales -> se descartan.
+function esMayoritariamenteMayusculas(texto) {
+  const letras = texto.replace(/[^a-zA-ZÀ-ÿ]/g, "");
+  if (letras.length < 3) return false;
+  const mayusculas = letras.replace(/[^A-ZÀ-Ý]/g, "");
+  return mayusculas.length / letras.length > 0.6;
+}
+
+// Mapea los números encontrados en la línea a los campos del ítem.
+// Formatos comunes en facturas AR:
+//   3 números -> cantidad, precio_unitario, subtotal
+//   5 números -> cantidad, precio_unitario, subtotal, % IVA, subtotal c/IVA
+const TASAS_IVA_COMUNES = [0, 2.5, 5, 10.5, 21, 27];
+
+function mapearColumnasItem(nums) {
+  if (nums.length >= 5) {
+    const posibleAlicuota = Math.round(nums[nums.length - 2] * 10) / 10;
+    if (TASAS_IVA_COMUNES.includes(posibleAlicuota)) {
+      return {
+        cantidad: nums[0],
+        precio_unitario: nums[1],
+        subtotal: nums[2],
+        alicuota_iva: posibleAlicuota,
+      };
+    }
+  }
+
+  // fallback genérico: últimos dos números = precio y subtotal, primero = cantidad
+  return {
+    cantidad: nums[0],
+    precio_unitario: nums[nums.length - 2],
+    subtotal: nums[nums.length - 1],
+    alicuota_iva: 21,
+  };
+}
+
+// Decide si los últimos números de la línea forman un bloque de 3 columnas
+// (cantidad, precio, subtotal) o de 5 (cantidad, precio, subtotal, % IVA,
+// subtotal c/IVA), mirando si el anteúltimo valor es una alícuota típica.
+function elegirCantidadColumnas(coincidencias, convertidor) {
+  if (coincidencias.length >= 5) {
+    const posibleAlicuota = Math.round(convertidor(coincidencias[coincidencias.length - 2][0]) * 10) / 10;
+    if (TASAS_IVA_COMUNES.includes(posibleAlicuota)) return 5;
+  }
+  return 3;
+}
+
 function decodificarQrAfip(contenidoQr) {
   try {
     const url = new URL(contenidoQr);
@@ -158,33 +206,39 @@ function intentarDetectarItems(texto) {
   const lineas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
   const items = [];
 
-  const regexNumero = /-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,4})?/g;
-  const PALABRAS_EXCLUIDAS = /cuit|fecha|domicilio|numero|número|cond\.|ing\. bruto|inic\. act|pedido|neto grava|exento|vencimiento|c\.u\.i\.t/i;
+  const regexNumero = /-?\d+(?:[.,]\d+)*/g;
+  const PALABRAS_EXCLUIDAS = /cuit|fecha|domicilio|numero|número|cond\.|ing\. bruto|inic\. act|pedido|neto grava|exento|vencimiento|c\.u\.i\.t|efectos fiscales|derechos emergentes|dispuesto en|art[íi]culo|modificatoria|tipo de cambio|lugar de pago/i;
 
   for (const linea of lineas) {
     // las líneas de datos de cabecera son del tipo "Campo: valor" -> se descartan
     if (linea.includes(":")) continue;
     if (PALABRAS_EXCLUIDAS.test(linea)) continue;
+    // los párrafos de texto legal son oraciones normales (minúsculas);
+    // las descripciones de producto en facturas AR suelen ir en mayúsculas
+    if (linea.length > 70) continue;
 
-    const numeros = linea.match(regexNumero);
-    if (!numeros || numeros.length < 3) continue;
+    // Se buscan los números anclados al FINAL de la línea, no al primero que
+    // aparezca: la descripción del producto puede tener números propios
+    // (ej. "CEBADA NEGRA X 40 KG"), y si cortáramos ahí perderíamos la
+    // columna real de cantidad/precio/subtotal.
+    const coincidencias = [...linea.matchAll(new RegExp(regexNumero, "g"))];
+    if (coincidencias.length < 3) continue;
 
-    // descripción = lo que queda antes del primer número
-    const idxPrimerNumero = linea.search(regexNumero);
-    const descripcion = linea.slice(0, idxPrimerNumero).trim();
+    const cantColumnas = elegirCantidadColumnas(coincidencias, aNumero);
+    const primeraColumnaUsada = coincidencias[coincidencias.length - cantColumnas];
+    const descripcion = linea.slice(0, primeraColumnaUsada.index).trim();
     if (descripcion.length < 3) continue;
+    if (!esMayoritariamenteMayusculas(descripcion)) continue;
 
-    const nums = numeros.map(aNumero);
-    const subtotal = nums[nums.length - 1];
-    const precioUnitario = nums.length >= 2 ? nums[nums.length - 2] : 0;
-    const cantidad = nums.length >= 3 ? nums[0] : 1;
+    const nums = coincidencias.slice(coincidencias.length - cantColumnas).map((m) => aNumero(m[0]));
+    const { cantidad, precio_unitario, subtotal, alicuota_iva } = mapearColumnasItem(nums);
 
     items.push({
       descripcion,
       cantidad: cantidad || 1,
       unidad_medida: "unidad",
-      precio_unitario: precioUnitario || 0,
-      alicuota_iva: 21,
+      precio_unitario: precio_unitario || 0,
+      alicuota_iva: alicuota_iva,
       subtotal: subtotal || 0,
     });
   }
@@ -195,11 +249,20 @@ function intentarDetectarItems(texto) {
 function aNumero(s) {
   if (!s) return 0;
   let limpio = s.replace(/\s/g, "");
-  if (limpio.includes(",") && limpio.includes(".")) {
-    limpio = limpio.replace(/\./g, "").replace(",", ".");
-  } else if (limpio.includes(",")) {
+
+  const cantidadSeparadores = (limpio.match(/[.,]/g) || []).length;
+
+  if (cantidadSeparadores > 1) {
+    // más de un separador: el último es el decimal, el resto son de miles
+    const posUltimo = Math.max(limpio.lastIndexOf("."), limpio.lastIndexOf(","));
+    const enteros = limpio.slice(0, posUltimo).replace(/[.,]/g, "");
+    const decimales = limpio.slice(posUltimo + 1);
+    limpio = `${enteros}.${decimales}`;
+  } else {
+    // un solo separador (o ninguno): se interpreta directamente como decimal
     limpio = limpio.replace(",", ".");
   }
+
   const n = parseFloat(limpio);
   return isNaN(n) ? 0 : n;
 }
