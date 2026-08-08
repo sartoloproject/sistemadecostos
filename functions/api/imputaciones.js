@@ -1,5 +1,5 @@
 // POST /api/imputaciones
-//   body: { item_id, objeto_costo_id, cantidad_imputada? , porcentaje? }
+//   body: { item_id, objeto_costo_id, cantidad_imputada? , porcentaje?, categoria_id? }
 // Podés llamar este endpoint varias veces sobre el mismo item_id para
 // repartirlo entre distintos objetos de costo (ej. gasoil entre 3 tractores).
 //
@@ -9,7 +9,7 @@
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { item_id, objeto_costo_id, cantidad_imputada, porcentaje } = await request.json();
+    const { item_id, objeto_costo_id, cantidad_imputada, porcentaje, categoria_id } = await request.json();
 
     if (!item_id || !objeto_costo_id) {
       return new Response("'item_id' y 'objeto_costo_id' son requeridos", { status: 400 });
@@ -37,10 +37,10 @@ export async function onRequestPost({ request, env }) {
 
     await env.DB
       .prepare(
-        `INSERT INTO imputaciones (item_id, objeto_costo_id, cantidad_imputada, porcentaje, monto_imputado)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO imputaciones (item_id, objeto_costo_id, cantidad_imputada, porcentaje, monto_imputado, categoria_id)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .bind(item_id, objeto_costo_id, cantidad_imputada ?? null, porcentaje ?? null, monto)
+      .bind(item_id, objeto_costo_id, cantidad_imputada ?? null, porcentaje ?? null, monto, categoria_id ?? null)
       .run();
 
     const totalImputado = await env.DB

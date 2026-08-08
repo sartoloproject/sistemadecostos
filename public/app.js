@@ -376,10 +376,56 @@ async function cargarObjetosCosto() {
   tbody.innerHTML = "";
   objetos.forEach((o) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${o.tipo}</td><td>${o.nombre}</td><td>${o.identificador || ""}</td>`;
+    tr.innerHTML = `
+      <td>${o.tipo}</td><td>${o.nombre}</td><td>${o.identificador || ""}</td>
+      <td><button type="button" class="btn-ver-movimientos">Ver movimientos</button></td>
+    `;
+    tr.querySelector(".btn-ver-movimientos").addEventListener("click", () => {
+      verMovimientosObjeto(o.id, o.nombre);
+    });
     tbody.appendChild(tr);
   });
   return objetos;
+}
+
+async function verMovimientosObjeto(objetoId, nombreObjeto) {
+  const div = document.getElementById("objeto-movimientos-resultado");
+  div.innerHTML = "<p class='hint'>Cargando movimientos...</p>";
+
+  const data = await fetch(`/api/objetos-costo/${objetoId}/movimientos`).then((r) => r.json());
+
+  if (data.movimientos.length === 0) {
+    div.innerHTML = `<h3>${nombreObjeto}</h3><p class="hint">Todavía no tiene nada imputado.</p>`;
+    return;
+  }
+
+  div.innerHTML = `
+    <h3>${nombreObjeto}</h3>
+    <p><strong>Total imputado: $${data.total.toFixed(2)}</strong></p>
+    <table>
+      <thead>
+        <tr><th>Fecha</th><th>Proveedor</th><th>Producto</th><th>Categoría</th><th>Cantidad / %</th><th>Monto</th></tr>
+      </thead>
+      <tbody>
+        ${data.movimientos
+          .map((m) => {
+            const valor =
+              m.cantidad_imputada != null
+                ? `${m.cantidad_imputada} ${m.unidad_medida || ""}`
+                : `${m.porcentaje}%`;
+            return `<tr>
+              <td>${m.fecha_emision}</td>
+              <td>${m.proveedor}</td>
+              <td>${m.producto}</td>
+              <td>${m.categoria || "<span class='hint'>sin categoría</span>"}</td>
+              <td>${valor}</td>
+              <td>$${m.monto_imputado.toFixed(2)}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 document.getElementById("btn-crear-objeto").addEventListener("click", async () => {
@@ -400,7 +446,37 @@ document.getElementById("btn-crear-objeto").addEventListener("click", async () =
   cargarObjetosCosto();
 });
 
-document.querySelector('[data-tab="objetos"]').addEventListener("click", cargarObjetosCosto);
+async function cargarCategorias() {
+  const resp = await fetch("/api/categorias");
+  const categorias = await resp.json();
+  const tbody = document.querySelector("#tabla-categorias tbody");
+  tbody.innerHTML = "";
+  categorias.forEach((c) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${c.nombre}</td>`;
+    tbody.appendChild(tr);
+  });
+  return categorias;
+}
+
+document.getElementById("btn-crear-categoria").addEventListener("click", async () => {
+  const nombre = document.getElementById("cat-nombre").value.trim();
+  if (!nombre) return alert("Ingresá un nombre");
+
+  await fetch("/api/categorias", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nombre }),
+  });
+
+  document.getElementById("cat-nombre").value = "";
+  cargarCategorias();
+});
+
+document.querySelector('[data-tab="objetos"]').addEventListener("click", () => {
+  cargarObjetosCosto();
+  cargarCategorias();
+});
 
 // ============================================================
 // TAB: IMPUTAR
@@ -409,9 +485,10 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
   const facturaId = document.getElementById("imp-factura-id").value;
   if (!facturaId) return;
 
-  const [itemsResp, objetos] = await Promise.all([
+  const [itemsResp, objetos, categorias] = await Promise.all([
     fetch(`/api/facturas/${facturaId}/items`).then((r) => r.json()),
     cargarObjetosCosto(),
+    fetch("/api/categorias").then((r) => r.json()),
   ]);
 
   const tbody = document.querySelector("#tabla-imputar tbody");
@@ -422,6 +499,9 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
     const opcionesObjetos = objetos
       .map((o) => `<option value="${o.id}">[${o.tipo}] ${o.nombre}</option>`)
       .join("");
+    const opcionesCategorias =
+      `<option value="">(sin categoría)</option>` +
+      categorias.map((c) => `<option value="${c.id}">${c.nombre}</option>`).join("");
 
     const baseTotal = item.subtotal_con_iva ?? item.subtotal;
     const restante = Math.max(0, baseTotal - item.monto_ya_imputado);
@@ -436,6 +516,7 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
       <td>${item.monto_ya_imputado.toFixed(2)}</td>
       <td class="celda-estado">${estadoHtml}</td>
       <td><select class="sel-objeto">${opcionesObjetos}</select></td>
+      <td><select class="sel-categoria">${opcionesCategorias}</select></td>
       <td>
         <input class="inp-cantidad-pct" type="number" step="0.0001" placeholder="cantidad">
         <select class="sel-modo">
@@ -456,6 +537,7 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
 
     tr.querySelector(".btn-imputar").addEventListener("click", async () => {
       const objetoCostoId = tr.querySelector(".sel-objeto").value;
+      const categoriaId = tr.querySelector(".sel-categoria").value;
       const valor = parseFloat(tr.querySelector(".inp-cantidad-pct").value);
       const modo = tr.querySelector(".sel-modo").value;
 
@@ -464,6 +546,7 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
       const body = { item_id: item.id, objeto_costo_id: objetoCostoId };
       if (modo === "cantidad") body.cantidad_imputada = valor;
       else body.porcentaje = valor;
+      if (categoriaId) body.categoria_id = categoriaId;
 
       const resp = await fetch("/api/imputaciones", {
         method: "POST",
@@ -498,7 +581,7 @@ async function toggleHistorial(filaItem, item) {
   const filaHistorial = document.createElement("tr");
   filaHistorial.className = "fila-historial";
   const celda = document.createElement("td");
-  celda.colSpan = 7;
+  celda.colSpan = 9;
   celda.innerHTML = "Cargando historial...";
   filaHistorial.appendChild(celda);
   filaItem.after(filaHistorial);
@@ -513,7 +596,7 @@ async function toggleHistorial(filaItem, item) {
   celda.innerHTML = `
     <table style="margin:4px 0">
       <thead>
-        <tr><th>Objeto de costo</th><th>Cantidad / %</th><th>Monto</th><th>Fecha</th><th></th></tr>
+        <tr><th>Objeto de costo</th><th>Categoría</th><th>Cantidad / %</th><th>Monto</th><th>Fecha</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -529,6 +612,7 @@ async function toggleHistorial(filaItem, item) {
 
     filaImp.innerHTML = `
       <td>[${imp.objeto_tipo}] ${imp.objeto_nombre}</td>
+      <td>${imp.categoria || "<span class='hint'>sin categoría</span>"}</td>
       <td class="celda-valor">${valorMostrado}</td>
       <td>$${imp.monto_imputado.toFixed(2)}</td>
       <td>${new Date(imp.creado_en).toLocaleDateString("es-AR")}</td>

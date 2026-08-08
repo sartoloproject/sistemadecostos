@@ -47,10 +47,12 @@ export async function onRequestDelete({ env, params }) {
 
 export async function onRequestPatch({ request, env, params }) {
   try {
-    const { cantidad_imputada, porcentaje } = await request.json();
+    const { cantidad_imputada, porcentaje, categoria_id } = await request.json();
 
-    if (cantidad_imputada == null && porcentaje == null) {
-      return new Response("Especificá 'cantidad_imputada' o 'porcentaje'", { status: 400 });
+    const soloCategoria = cantidad_imputada == null && porcentaje == null && categoria_id !== undefined;
+
+    if (!soloCategoria && cantidad_imputada == null && porcentaje == null) {
+      return new Response("Especificá 'cantidad_imputada', 'porcentaje' o 'categoria_id'", { status: 400 });
     }
 
     const imputacion = await env.DB
@@ -60,6 +62,16 @@ export async function onRequestPatch({ request, env, params }) {
 
     if (!imputacion) {
       return new Response("Imputación no encontrada", { status: 404 });
+    }
+
+    if (soloCategoria) {
+      // solo cambia la categoría, no recalcula el monto
+      await env.DB
+        .prepare("UPDATE imputaciones SET categoria_id = ? WHERE id = ?")
+        .bind(categoria_id ?? null, params.id)
+        .run();
+
+      return Response.json({ ok: true });
     }
 
     const item = await env.DB
@@ -77,9 +89,12 @@ export async function onRequestPatch({ request, env, params }) {
 
     await env.DB
       .prepare(
-        "UPDATE imputaciones SET cantidad_imputada = ?, porcentaje = ?, monto_imputado = ? WHERE id = ?"
+        `UPDATE imputaciones
+         SET cantidad_imputada = ?, porcentaje = ?, monto_imputado = ?,
+             categoria_id = COALESCE(?, categoria_id)
+         WHERE id = ?`
       )
-      .bind(cantidad_imputada ?? null, porcentaje ?? null, monto, params.id)
+      .bind(cantidad_imputada ?? null, porcentaje ?? null, monto, categoria_id ?? null, params.id)
       .run();
 
     await recalcularEstadoItem(imputacion.item_id, env);

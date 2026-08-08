@@ -88,10 +88,16 @@ CREATE TABLE objetos_costo (
     creado_en           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE categorias (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE imputaciones (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id             INTEGER NOT NULL REFERENCES factura_items(id) ON DELETE CASCADE,
     objeto_costo_id     INTEGER NOT NULL REFERENCES objetos_costo(id),
+    categoria_id        INTEGER REFERENCES categorias(id),
     cantidad_imputada   REAL,
     porcentaje          REAL,
     monto_imputado      REAL NOT NULL,

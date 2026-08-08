@@ -6,9 +6,11 @@ export async function onRequestGet({ env, params }) {
     .prepare(
       `SELECT im.id, im.objeto_costo_id, im.cantidad_imputada, im.porcentaje,
               im.monto_imputado, im.creado_en,
-              oc.tipo AS objeto_tipo, oc.nombre AS objeto_nombre
+              oc.tipo AS objeto_tipo, oc.nombre AS objeto_nombre,
+              c.id AS categoria_id, c.nombre AS categoria
        FROM imputaciones im
        JOIN objetos_costo oc ON oc.id = im.objeto_costo_id
+       LEFT JOIN categorias c ON c.id = im.categoria_id
        WHERE im.item_id = ?
        ORDER BY im.creado_en DESC`
     )
