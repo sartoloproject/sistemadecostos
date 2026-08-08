@@ -89,8 +89,9 @@ CREATE TABLE objetos_costo (
 );
 
 CREATE TABLE categorias (
-    id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL UNIQUE
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre              TEXT NOT NULL UNIQUE,
+    categoria_padre_id  INTEGER REFERENCES categorias(id)
 );
 
 CREATE TABLE imputaciones (

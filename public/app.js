@@ -399,9 +399,38 @@ async function verMovimientosObjeto(objetoId, nombreObjeto) {
     return;
   }
 
+  const htmlResumenCategorias = data.resumen_por_categoria
+    .map((g) => {
+      const etiqueta = g.categoria_padre ? `${g.categoria_padre} ↳ ${g.categoria}` : g.categoria;
+
+      const montosPorMoneda = Object.entries(g.por_moneda)
+        .map(([moneda, monto]) => `${monto.toFixed(2)} ${moneda}`)
+        .join(" + ");
+
+      const cantidadesPorUnidad = Object.entries(g.por_unidad)
+        .map(([unidad, cantidad]) => `${cantidad} ${unidad}`)
+        .join(", ");
+
+      return `
+        <tr>
+          <td>${etiqueta}</td>
+          <td>${montosPorMoneda}</td>
+          <td>${cantidadesPorUnidad || "<span class='hint'>—</span>"}</td>
+        </tr>`;
+    })
+    .join("");
+
   div.innerHTML = `
     <h3>${nombreObjeto}</h3>
     <p><strong>Total imputado: $${data.total.toFixed(2)}</strong></p>
+
+    <h4>Resumen por categoría</h4>
+    <table>
+      <thead><tr><th>Categoría</th><th>Importe (por moneda)</th><th>Cantidad (por unidad)</th></tr></thead>
+      <tbody>${htmlResumenCategorias}</tbody>
+    </table>
+
+    <h4>Detalle de movimientos</h4>
     <table>
       <thead>
         <tr><th>Fecha</th><th>Proveedor</th><th>Producto</th><th>Categoría</th><th>Cantidad / %</th><th>Monto</th></tr>
@@ -449,24 +478,60 @@ document.getElementById("btn-crear-objeto").addEventListener("click", async () =
 async function cargarCategorias() {
   const resp = await fetch("/api/categorias");
   const categorias = await resp.json();
+
   const tbody = document.querySelector("#tabla-categorias tbody");
   tbody.innerHTML = "";
   categorias.forEach((c) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${c.nombre}</td>`;
+    const nombreMostrado = c.categoria_padre_nombre
+      ? `&nbsp;&nbsp;&nbsp;↳ ${c.nombre} <span class="hint">(de ${c.categoria_padre_nombre})</span>`
+      : c.nombre;
+    tr.innerHTML = `<td>${nombreMostrado}</td>`;
     tbody.appendChild(tr);
   });
+
+  // el selector de "categoría padre" solo debe ofrecer categorías principales
+  // (no se permite anidar subcategorías dentro de subcategorías)
+  const selectPadre = document.getElementById("cat-padre");
+  const seleccionActual = selectPadre.value;
+  selectPadre.innerHTML =
+    `<option value="">(categoría principal)</option>` +
+    categorias
+      .filter((c) => !c.categoria_padre_id)
+      .map((c) => `<option value="${c.id}">${c.nombre}</option>`)
+      .join("");
+  selectPadre.value = seleccionActual;
+
   return categorias;
+}
+
+// Arma <option> ordenadas por categoría principal, con sus subcategorías
+// indentadas justo debajo, para usar en cualquier selector de categoría.
+function opcionesCategoriasConJerarquia(categorias, seleccionadaId = null) {
+  const principales = categorias.filter((c) => !c.categoria_padre_id);
+  let html = `<option value="">(sin categoría)</option>`;
+
+  principales.forEach((principal) => {
+    html += `<option value="${principal.id}" ${principal.id === seleccionadaId ? "selected" : ""}>${principal.nombre}</option>`;
+    categorias
+      .filter((c) => c.categoria_padre_id === principal.id)
+      .forEach((sub) => {
+        html += `<option value="${sub.id}" ${sub.id === seleccionadaId ? "selected" : ""}>&nbsp;&nbsp;↳ ${sub.nombre}</option>`;
+      });
+  });
+
+  return html;
 }
 
 document.getElementById("btn-crear-categoria").addEventListener("click", async () => {
   const nombre = document.getElementById("cat-nombre").value.trim();
+  const categoriaPadreId = document.getElementById("cat-padre").value;
   if (!nombre) return alert("Ingresá un nombre");
 
   await fetch("/api/categorias", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nombre }),
+    body: JSON.stringify({ nombre, categoria_padre_id: categoriaPadreId || null }),
   });
 
   document.getElementById("cat-nombre").value = "";
@@ -499,9 +564,7 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
     const opcionesObjetos = objetos
       .map((o) => `<option value="${o.id}">[${o.tipo}] ${o.nombre}</option>`)
       .join("");
-    const opcionesCategorias =
-      `<option value="">(sin categoría)</option>` +
-      categorias.map((c) => `<option value="${c.id}">${c.nombre}</option>`).join("");
+    const opcionesCategorias = opcionesCategoriasConJerarquia(categorias);
 
     const baseTotal = item.subtotal_con_iva ?? item.subtotal;
     const restante = Math.max(0, baseTotal - item.monto_ya_imputado);
@@ -625,14 +688,7 @@ async function toggleHistorial(filaItem, item) {
     filaImp.querySelector(".btn-editar-categoria").addEventListener("click", async () => {
       const celdaCategoria = filaImp.querySelector(".celda-categoria");
       const categorias = await fetch("/api/categorias").then((r) => r.json());
-      const opciones =
-        `<option value="">(sin categoría)</option>` +
-        categorias
-          .map(
-            (c) =>
-              `<option value="${c.id}" ${c.id === imp.categoria_id ? "selected" : ""}>${c.nombre}</option>`
-          )
-          .join("");
+      const opciones = opcionesCategoriasConJerarquia(categorias, imp.categoria_id);
 
       celdaCategoria.innerHTML = `
         <select class="sel-editar-categoria">${opciones}</select>

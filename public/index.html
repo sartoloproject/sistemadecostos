@@ -90,9 +90,14 @@
     <div id="objeto-movimientos-resultado"></div>
 
     <h3>Categorías</h3>
-    <p class="hint">Para clasificar cada imputación (ej: Agroquímico, Combustible, Repuestos, Mano de obra).</p>
+    <p class="hint">Para clasificar cada imputación (ej: Agroquímico, Combustible, Repuestos, Mano de obra). Podés crear subcategorías eligiendo una "categoría padre".</p>
     <div class="grid-form">
       <label>Nombre <input id="cat-nombre" type="text" placeholder="ej: Agroquímico"></label>
+      <label>Categoría padre (opcional)
+        <select id="cat-padre">
+          <option value="">(categoría principal)</option>
+        </select>
+      </label>
     </div>
     <button id="btn-crear-categoria" type="button" class="primary">Crear categoría</button>
     <table id="tabla-categorias">
