@@ -437,11 +437,14 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
       <td class="celda-estado">${estadoHtml}</td>
       <td><select class="sel-objeto">${opcionesObjetos}</select></td>
       <td>
-        <input class="inp-cantidad-pct" type="number" step="0.01" placeholder="cantidad o %">
+        <input class="inp-cantidad-pct" type="number" step="0.0001" placeholder="cantidad">
         <select class="sel-modo">
-          <option value="cantidad">cantidad</option>
+          <option value="cantidad">${item.unidad_medida || "unidad"}</option>
           <option value="porcentaje">%</option>
         </select>
+        <div style="color:#6b6f6a;font-size:11.5px;margin-top:2px">
+          de ${item.cantidad} ${item.unidad_medida || "unidad"} en total
+        </div>
       </td>
       <td><button type="button" class="btn-imputar">Imputar</button></td>
     `;
