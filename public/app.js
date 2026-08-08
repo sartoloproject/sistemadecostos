@@ -423,10 +423,18 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
       .map((o) => `<option value="${o.id}">[${o.tipo}] ${o.nombre}</option>`)
       .join("");
 
+    const baseTotal = item.subtotal_con_iva ?? item.subtotal;
+    const restante = Math.max(0, baseTotal - item.monto_ya_imputado);
+    const estadoHtml =
+      restante <= 0.005
+        ? `<span style="color:#3f6b4f">✔ Completo</span>`
+        : `<span style="color:#b06a2c">Falta $${restante.toFixed(2)}</span>`;
+
     tr.innerHTML = `
       <td>${item.descripcion}</td>
-      <td>${item.subtotal}</td>
-      <td>${item.monto_ya_imputado}</td>
+      <td>${baseTotal.toFixed(2)}</td>
+      <td>${item.monto_ya_imputado.toFixed(2)}</td>
+      <td class="celda-estado">${estadoHtml}</td>
       <td><select class="sel-objeto">${opcionesObjetos}</select></td>
       <td>
         <input class="inp-cantidad-pct" type="number" step="0.01" placeholder="cantidad o %">
@@ -458,7 +466,9 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
       const resultadoDiv = document.getElementById("resultado-imputacion");
       if (resp.ok) {
         const data = await resp.json();
-        resultadoDiv.textContent = `Imputado: $${data.monto_imputado.toFixed(2)}`;
+        resultadoDiv.textContent = data.completo
+          ? `Imputado $${data.monto_imputado.toFixed(2)} — ítem completo.`
+          : `Imputado $${data.monto_imputado.toFixed(2)} — faltan $${data.restante.toFixed(2)} por imputar.`;
         document.getElementById("btn-cargar-items-imputar").click(); // refresca
       } else {
         resultadoDiv.textContent = "Error: " + (await resp.text());
