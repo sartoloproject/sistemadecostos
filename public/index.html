@@ -96,7 +96,7 @@
 
     <table id="tabla-imputar">
       <thead>
-        <tr><th>Descripción</th><th>Subtotal c/IVA</th><th>Ya imputado</th><th>Estado</th><th>Objeto de costo</th><th>Cantidad / %</th><th></th></tr>
+        <tr><th>Descripción</th><th>Subtotal c/IVA</th><th>Ya imputado</th><th>Estado</th><th>Objeto de costo</th><th>Cantidad / %</th><th></th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -106,8 +106,11 @@
   <!-- ===================== TAB: RESUMEN ===================== -->
   <section id="tab-resumen" class="tab-content">
     <h2>Resumen de cuenta por proveedor</h2>
-    <label>Proveedor ID <input id="res-proveedor-id" type="number"></label>
-    <button id="btn-ver-resumen" type="button">Ver resumen</button>
+    <label>Buscar por CUIT o razón social
+      <input id="res-busqueda-proveedor" type="text" placeholder="Ej: 30658531332 o Agroempresa" autocomplete="off">
+    </label>
+    <div id="res-resultados-busqueda" style="display:none"></div>
+    <div id="res-proveedor-seleccionado" class="hint"></div>
     <div id="resumen-resultado"></div>
   </section>
 

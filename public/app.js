@@ -447,7 +447,12 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
         </div>
       </td>
       <td><button type="button" class="btn-imputar">Imputar</button></td>
+      <td><button type="button" class="btn-historial">Historial</button></td>
     `;
+
+    tr.querySelector(".btn-historial").addEventListener("click", () => {
+      toggleHistorial(tr, item);
+    });
 
     tr.querySelector(".btn-imputar").addEventListener("click", async () => {
       const objetoCostoId = tr.querySelector(".sel-objeto").value;
@@ -482,13 +487,151 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
   });
 });
 
+// --- historial de imputaciones por ítem: mostrar, editar, eliminar ---
+async function toggleHistorial(filaItem, item) {
+  const filaSiguiente = filaItem.nextElementSibling;
+  if (filaSiguiente && filaSiguiente.classList.contains("fila-historial")) {
+    filaSiguiente.remove(); // ya estaba abierto -> lo cierra
+    return;
+  }
+
+  const filaHistorial = document.createElement("tr");
+  filaHistorial.className = "fila-historial";
+  const celda = document.createElement("td");
+  celda.colSpan = 7;
+  celda.innerHTML = "Cargando historial...";
+  filaHistorial.appendChild(celda);
+  filaItem.after(filaHistorial);
+
+  const historial = await fetch(`/api/items/${item.id}/imputaciones`).then((r) => r.json());
+
+  if (historial.length === 0) {
+    celda.innerHTML = `<span class="hint">Todavía no se imputó nada de este ítem.</span>`;
+    return;
+  }
+
+  celda.innerHTML = `
+    <table style="margin:4px 0">
+      <thead>
+        <tr><th>Objeto de costo</th><th>Cantidad / %</th><th>Monto</th><th>Fecha</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const cuerpoHistorial = celda.querySelector("tbody");
+
+  historial.forEach((imp) => {
+    const filaImp = document.createElement("tr");
+    const valorMostrado =
+      imp.cantidad_imputada != null
+        ? `${imp.cantidad_imputada} ${item.unidad_medida || "unidad"}`
+        : `${imp.porcentaje}%`;
+
+    filaImp.innerHTML = `
+      <td>[${imp.objeto_tipo}] ${imp.objeto_nombre}</td>
+      <td class="celda-valor">${valorMostrado}</td>
+      <td>$${imp.monto_imputado.toFixed(2)}</td>
+      <td>${new Date(imp.creado_en).toLocaleDateString("es-AR")}</td>
+      <td>
+        <button type="button" class="btn-editar-imp">Editar</button>
+        <button type="button" class="btn-eliminar-imp">Eliminar</button>
+      </td>
+    `;
+
+    filaImp.querySelector(".btn-eliminar-imp").addEventListener("click", async () => {
+      if (!confirm("¿Eliminar esta imputación?")) return;
+      const resp = await fetch(`/api/imputaciones/${imp.id}`, { method: "DELETE" });
+      if (resp.ok) {
+        document.getElementById("btn-cargar-items-imputar").click(); // refresca todo
+      } else {
+        alert("Error: " + (await resp.text()));
+      }
+    });
+
+    filaImp.querySelector(".btn-editar-imp").addEventListener("click", () => {
+      const esCantidad = imp.cantidad_imputada != null;
+      const celdaValor = filaImp.querySelector(".celda-valor");
+      celdaValor.innerHTML = `
+        <input type="number" step="0.0001" class="inp-editar-valor" value="${esCantidad ? imp.cantidad_imputada : imp.porcentaje}" style="width:80px">
+        ${esCantidad ? item.unidad_medida || "unidad" : "%"}
+        <button type="button" class="btn-guardar-edicion">Guardar</button>
+      `;
+
+      celdaValor.querySelector(".btn-guardar-edicion").addEventListener("click", async () => {
+        const nuevoValor = parseFloat(celdaValor.querySelector(".inp-editar-valor").value);
+        if (!nuevoValor) return alert("Ingresá un valor válido");
+
+        const body = esCantidad ? { cantidad_imputada: nuevoValor } : { porcentaje: nuevoValor };
+
+        const resp = await fetch(`/api/imputaciones/${imp.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (resp.ok) {
+          document.getElementById("btn-cargar-items-imputar").click(); // refresca todo
+        } else {
+          alert("Error: " + (await resp.text()));
+        }
+      });
+    });
+
+    cuerpoHistorial.appendChild(filaImp);
+  });
+}
+
 // ============================================================
 // TAB: RESUMEN POR PROVEEDOR
 // ============================================================
-document.getElementById("btn-ver-resumen").addEventListener("click", async () => {
-  const proveedorId = document.getElementById("res-proveedor-id").value;
-  if (!proveedorId) return;
+let timeoutBusquedaProveedor = null;
 
+document.getElementById("res-busqueda-proveedor").addEventListener("input", (e) => {
+  clearTimeout(timeoutBusquedaProveedor);
+  const texto = e.target.value.trim();
+  const contenedorResultados = document.getElementById("res-resultados-busqueda");
+
+  if (texto.length < 2) {
+    contenedorResultados.style.display = "none";
+    contenedorResultados.innerHTML = "";
+    return;
+  }
+
+  timeoutBusquedaProveedor = setTimeout(async () => {
+    const proveedores = await fetch(`/api/proveedores?q=${encodeURIComponent(texto)}`).then((r) => r.json());
+
+    if (proveedores.length === 0) {
+      contenedorResultados.style.display = "block";
+      contenedorResultados.innerHTML = `<div class="resultado-proveedor hint">Sin resultados</div>`;
+      return;
+    }
+
+    contenedorResultados.style.display = "block";
+    contenedorResultados.innerHTML = proveedores
+      .map(
+        (p) => `
+        <div class="resultado-proveedor" data-id="${p.id}">
+          ${p.razon_social}
+          <small>CUIT ${p.cuit}</small>
+        </div>`
+      )
+      .join("");
+
+    contenedorResultados.querySelectorAll(".resultado-proveedor[data-id]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const proveedor = proveedores.find((p) => String(p.id) === el.dataset.id);
+        document.getElementById("res-busqueda-proveedor").value = "";
+        contenedorResultados.style.display = "none";
+        contenedorResultados.innerHTML = "";
+        document.getElementById("res-proveedor-seleccionado").textContent =
+          `Viendo cuenta de: ${proveedor.razon_social} (CUIT ${proveedor.cuit})`;
+        cargarResumenProveedor(proveedor.id);
+      });
+    });
+  }, 300); // debounce: espera que el usuario deje de tipear
+});
+
+async function cargarResumenProveedor(proveedorId) {
   const resp = await fetch(`/api/resumen/${proveedorId}`);
   const data = await resp.json();
   const div = document.getElementById("resumen-resultado");
@@ -515,4 +658,4 @@ document.getElementById("btn-ver-resumen").addEventListener("click", async () =>
       </tbody>
     </table>
   `;
-});
+}
