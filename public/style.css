@@ -94,3 +94,21 @@ button.primary {
 .acciones { margin-top: 16px; }
 
 #estado-parseo { margin: 10px 0; }
+
+#res-resultados-busqueda {
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: #fff;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.resultado-proveedor {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--borde);
+  font-size: 13.5px;
+}
+.resultado-proveedor:last-child { border-bottom: none; }
+.resultado-proveedor:hover { background: var(--verde-suave); }
+.resultado-proveedor small { color: var(--texto-muted); display: block; }

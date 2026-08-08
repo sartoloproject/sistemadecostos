@@ -1,10 +1,20 @@
-// GET  /api/proveedores        -> lista todos los proveedores
-// POST /api/proveedores        -> crea uno (o devuelve el existente por CUIT)
+// GET  /api/proveedores            -> lista todos los proveedores
+// GET  /api/proveedores?q=texto    -> busca por CUIT o razón social (parcial)
+// POST /api/proveedores            -> crea uno (o devuelve el existente por CUIT)
 
-export async function onRequestGet({ env }) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM proveedores ORDER BY razon_social")
-    .all();
+export async function onRequestGet({ env, request }) {
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q");
+
+  const stmt = q
+    ? env.DB
+        .prepare(
+          "SELECT * FROM proveedores WHERE cuit LIKE ? OR razon_social LIKE ? ORDER BY razon_social LIMIT 20"
+        )
+        .bind(`%${q}%`, `%${q}%`)
+    : env.DB.prepare("SELECT * FROM proveedores ORDER BY razon_social");
+
+  const { results } = await stmt.all();
   return Response.json(results);
 }
 
