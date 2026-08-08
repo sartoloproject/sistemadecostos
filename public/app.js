@@ -612,7 +612,7 @@ async function toggleHistorial(filaItem, item) {
 
     filaImp.innerHTML = `
       <td>[${imp.objeto_tipo}] ${imp.objeto_nombre}</td>
-      <td>${imp.categoria || "<span class='hint'>sin categoría</span>"}</td>
+      <td class="celda-categoria">${imp.categoria || "<span class='hint'>sin categoría</span>"} <button type="button" class="btn-editar-categoria" style="font-size:11px;padding:2px 6px">✎</button></td>
       <td class="celda-valor">${valorMostrado}</td>
       <td>$${imp.monto_imputado.toFixed(2)}</td>
       <td>${new Date(imp.creado_en).toLocaleDateString("es-AR")}</td>
@@ -621,6 +621,40 @@ async function toggleHistorial(filaItem, item) {
         <button type="button" class="btn-eliminar-imp">Eliminar</button>
       </td>
     `;
+
+    filaImp.querySelector(".btn-editar-categoria").addEventListener("click", async () => {
+      const celdaCategoria = filaImp.querySelector(".celda-categoria");
+      const categorias = await fetch("/api/categorias").then((r) => r.json());
+      const opciones =
+        `<option value="">(sin categoría)</option>` +
+        categorias
+          .map(
+            (c) =>
+              `<option value="${c.id}" ${c.id === imp.categoria_id ? "selected" : ""}>${c.nombre}</option>`
+          )
+          .join("");
+
+      celdaCategoria.innerHTML = `
+        <select class="sel-editar-categoria">${opciones}</select>
+        <button type="button" class="btn-guardar-categoria">Guardar</button>
+      `;
+
+      celdaCategoria.querySelector(".btn-guardar-categoria").addEventListener("click", async () => {
+        const nuevaCategoriaId = celdaCategoria.querySelector(".sel-editar-categoria").value;
+
+        const resp = await fetch(`/api/imputaciones/${imp.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoria_id: nuevaCategoriaId || null }),
+        });
+
+        if (resp.ok) {
+          document.getElementById("btn-cargar-items-imputar").click(); // refresca todo
+        } else {
+          alert("Error: " + (await resp.text()));
+        }
+      });
+    });
 
     filaImp.querySelector(".btn-eliminar-imp").addEventListener("click", async () => {
       if (!confirm("¿Eliminar esta imputación?")) return;
