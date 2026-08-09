@@ -217,9 +217,8 @@ function intentarDetectarItems(texto) {
     // las líneas de datos de cabecera son del tipo "Campo: valor" -> se descartan
     if (linea.includes(":")) continue;
     if (PALABRAS_EXCLUIDAS.test(linea)) continue;
-    // los párrafos de texto legal son oraciones normales (minúsculas);
-    // las descripciones de producto en facturas AR suelen ir en mayúsculas
-    if (linea.length > 70) continue;
+    // (los párrafos de texto legal se filtran más abajo por estar en minúsculas,
+    // no por longitud — nombres de productos como herbicidas pueden ser largos)
 
     // Se buscan los números anclados al FINAL de la línea, no al primero que
     // aparezca: la descripción del producto puede tener números propios
