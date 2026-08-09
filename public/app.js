@@ -905,7 +905,13 @@ async function cargarResumenProveedor(proveedorId) {
   }
 
   div.innerHTML = `
-    <h3>${data.saldo.razon_social}</h3>
+    <h3 id="nombre-proveedor-resumen">${data.saldo.razon_social}
+      <button type="button" id="btn-editar-razon-social" style="font-size:12px;margin-left:8px">Editar</button>
+    </h3>
+    <div id="form-editar-proveedor" style="display:none;margin-bottom:10px">
+      <input type="text" id="inp-nueva-razon-social" value="${data.saldo.razon_social}" style="width:300px">
+      <button type="button" id="btn-guardar-razon-social" class="primary">Guardar</button>
+    </div>
     <p>Total facturado: $${data.saldo.total_facturado.toFixed(2)} —
        Total pagado: $${data.saldo.total_pagado.toFixed(2)} —
        <strong>Saldo pendiente: $${data.saldo.saldo_pendiente.toFixed(2)}</strong></p>
@@ -921,4 +927,25 @@ async function cargarResumenProveedor(proveedorId) {
       </tbody>
     </table>
   `;
+
+  document.getElementById("btn-editar-razon-social").addEventListener("click", () => {
+    document.getElementById("form-editar-proveedor").style.display = "block";
+  });
+
+  document.getElementById("btn-guardar-razon-social").addEventListener("click", async () => {
+    const nuevaRazonSocial = document.getElementById("inp-nueva-razon-social").value.trim();
+    if (!nuevaRazonSocial) return alert("Ingresá un nombre");
+
+    const resp = await fetch(`/api/proveedores/${data.saldo.proveedor_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ razon_social: nuevaRazonSocial }),
+    });
+
+    if (resp.ok) {
+      cargarResumenProveedor(proveedorId); // refresca con el nombre nuevo
+    } else {
+      alert("Error: " + (await resp.text()));
+    }
+  });
 }
