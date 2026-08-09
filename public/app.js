@@ -916,9 +916,23 @@ async function cargarResumenProveedor(proveedorId) {
       <input type="text" id="inp-nueva-razon-social" value="${data.saldo.razon_social}" style="width:300px">
       <button type="button" id="btn-guardar-razon-social" class="primary">Guardar</button>
     </div>
-    <p>Total facturado: $${data.saldo.total_facturado.toFixed(2)} —
-       Total pagado: $${data.saldo.total_pagado.toFixed(2)} —
-       <strong>Saldo pendiente: $${data.saldo.saldo_pendiente.toFixed(2)}</strong></p>
+
+    <h4>Saldo por moneda</h4>
+    <table>
+      <thead><tr><th>Moneda</th><th>Facturado</th><th>Pagado</th><th>Pendiente</th></tr></thead>
+      <tbody>
+        ${data.saldos_por_moneda
+          .map(
+            (s) => `<tr>
+              <td>${s.moneda}</td>
+              <td>$${s.total_facturado.toFixed(2)}</td>
+              <td>$${s.total_pagado.toFixed(2)}</td>
+              <td><strong>$${s.saldo_pendiente.toFixed(2)}</strong></td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
     <table>
       <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th></tr></thead>
       <tbody>
