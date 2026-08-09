@@ -897,6 +897,7 @@ document.getElementById("res-busqueda-proveedor").addEventListener("input", (e) 
 async function cargarResumenProveedor(proveedorId) {
   const resp = await fetch(`/api/resumen/${proveedorId}`);
   const data = await resp.json();
+  const productos = await fetch(`/api/resumen/${proveedorId}/productos`).then((r) => r.json());
   const div = document.getElementById("resumen-resultado");
 
   if (!data.saldo) {
@@ -922,6 +923,25 @@ async function cargarResumenProveedor(proveedorId) {
           .map(
             (f) => `<tr><td>${f.tipo_cbte}</td><td>${f.punto_venta}</td><td>${f.numero}</td>
                         <td>${f.fecha_emision}</td><td>$${f.total.toFixed(2)}</td><td>${f.estado_pago}</td></tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+
+    <h4>Resumen por producto (todas las facturas de este proveedor)</h4>
+    <table>
+      <thead>
+        <tr><th>Producto</th><th>Comprado total</th><th>Ya imputado</th><th>Disponible (sin imputar)</th></tr>
+      </thead>
+      <tbody>
+        ${productos
+          .map(
+            (p) => `<tr>
+              <td>${p.producto}</td>
+              <td>${p.cantidad_total} ${p.unidad_medida} — $${p.monto_total.toFixed(2)} ${p.moneda}</td>
+              <td>$${p.monto_imputado.toFixed(2)} ${p.moneda}</td>
+              <td>${p.cantidad_disponible_aprox} ${p.unidad_medida} — $${p.monto_disponible.toFixed(2)} ${p.moneda}</td>
+            </tr>`
           )
           .join("")}
       </tbody>
