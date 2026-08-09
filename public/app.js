@@ -166,6 +166,25 @@ function elegirCantidadColumnas(coincidencias, convertidor) {
   return 3;
 }
 
+// La palabra de la unidad (Kilos, Litros, Unidades, etc.) casi siempre
+// aparece pegada entre el número de cantidad y el de precio unitario:
+// "... 40.00 Litros 5.5000 ...". La extraemos de esa posición en vez de
+// asumir "unidad" siempre.
+function extraerUnidadMedida(linea, coincidencias, cantColumnas) {
+  const idxBase = coincidencias.length - cantColumnas;
+  const matchCantidad = coincidencias[idxBase];
+  const matchPrecio = coincidencias[idxBase + 1];
+  if (!matchCantidad || !matchPrecio) return null;
+
+  const entre = linea.slice(matchCantidad.index + matchCantidad[0].length, matchPrecio.index).trim();
+
+  // tiene que ser una palabra razonable: solo letras, sin números ni símbolos raros
+  if (entre && entre.length <= 20 && /^[a-zA-ZÀ-ÿ.]+$/.test(entre)) {
+    return entre;
+  }
+  return null;
+}
+
 function decodificarQrAfip(contenidoQr) {
   try {
     const url = new URL(contenidoQr);
@@ -235,11 +254,12 @@ function intentarDetectarItems(texto) {
 
     const nums = coincidencias.slice(coincidencias.length - cantColumnas).map((m) => aNumero(m[0]));
     const { cantidad, precio_unitario, subtotal, alicuota_iva, subtotal_con_iva } = mapearColumnasItem(nums);
+    const unidadDetectada = extraerUnidadMedida(linea, coincidencias, cantColumnas);
 
     items.push({
       descripcion,
       cantidad: cantidad || 1,
-      unidad_medida: "unidad",
+      unidad_medida: unidadDetectada || "unidad",
       precio_unitario: precio_unitario || 0,
       alicuota_iva: alicuota_iva,
       subtotal: subtotal || 0,
