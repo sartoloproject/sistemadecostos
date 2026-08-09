@@ -399,62 +399,104 @@ async function verMovimientosObjeto(objetoId, nombreObjeto) {
     return;
   }
 
-  const htmlResumenCategorias = data.resumen_por_categoria
-    .map((g) => {
-      const etiqueta = g.categoria_padre ? `${g.categoria_padre} ↳ ${g.categoria}` : g.categoria;
-
-      const montosPorMoneda = Object.entries(g.por_moneda)
-        .map(([moneda, monto]) => `${monto.toFixed(2)} ${moneda}`)
-        .join(" + ");
-
-      const cantidadesPorUnidad = Object.entries(g.por_unidad)
-        .map(([unidad, cantidad]) => `${cantidad} ${unidad}`)
-        .join(", ");
-
-      return `
-        <tr>
-          <td>${etiqueta}</td>
-          <td>${montosPorMoneda}</td>
-          <td>${cantidadesPorUnidad || "<span class='hint'>—</span>"}</td>
-        </tr>`;
-    })
-    .join("");
+  const arbol = agruparPorCategoriaJerarquica(data.movimientos);
+  const arbolHtml = Object.values(arbol).map(renderNodoCategoria).join("");
 
   div.innerHTML = `
     <h3>${nombreObjeto}</h3>
     <p><strong>Total imputado: $${data.total.toFixed(2)}</strong></p>
-
-    <h4>Resumen por categoría</h4>
-    <table>
-      <thead><tr><th>Categoría</th><th>Importe (por moneda)</th><th>Cantidad (por unidad)</th></tr></thead>
-      <tbody>${htmlResumenCategorias}</tbody>
-    </table>
-
-    <h4>Detalle de movimientos</h4>
-    <table>
-      <thead>
-        <tr><th>Fecha</th><th>Proveedor</th><th>Producto</th><th>Categoría</th><th>Cantidad / %</th><th>Monto</th></tr>
-      </thead>
-      <tbody>
-        ${data.movimientos
-          .map((m) => {
-            const valor =
-              m.cantidad_imputada != null
-                ? `${m.cantidad_imputada} ${m.unidad_medida || ""}`
-                : `${m.porcentaje}%`;
-            return `<tr>
-              <td>${m.fecha_emision}</td>
-              <td>${m.proveedor}</td>
-              <td>${m.producto}</td>
-              <td>${m.categoria || "<span class='hint'>sin categoría</span>"}</td>
-              <td>${valor}</td>
-              <td>$${m.monto_imputado.toFixed(2)}</td>
-            </tr>`;
-          })
-          .join("")}
-      </tbody>
-    </table>
+    <div class="arbol-movimientos">${arbolHtml}</div>
   `;
+}
+
+// Agrupa los movimientos en: categoría principal -> (subcategoría opcional) -> producto -> movimientos.
+// Los totales se mantienen separados por moneda (nunca se suma PES con USD).
+function agruparPorCategoriaJerarquica(movimientos) {
+  const raiz = {};
+
+  const sumar = (nodo, m) => {
+    nodo.totalesPorMoneda[m.moneda || "PES"] = (nodo.totalesPorMoneda[m.moneda || "PES"] || 0) + m.monto_imputado;
+  };
+
+  movimientos.forEach((m) => {
+    const nombrePrincipal = m.categoria_padre || m.categoria || "Sin categoría";
+    const esSubcategoria = !!m.categoria_padre;
+
+    if (!raiz[nombrePrincipal]) {
+      raiz[nombrePrincipal] = { nombre: nombrePrincipal, totalesPorMoneda: {}, subcategorias: {}, productos: {} };
+    }
+    const nodoCategoria = raiz[nombrePrincipal];
+    sumar(nodoCategoria, m);
+
+    let contenedorProductos;
+    if (esSubcategoria) {
+      if (!nodoCategoria.subcategorias[m.categoria]) {
+        nodoCategoria.subcategorias[m.categoria] = { nombre: m.categoria, totalesPorMoneda: {}, productos: {} };
+      }
+      sumar(nodoCategoria.subcategorias[m.categoria], m);
+      contenedorProductos = nodoCategoria.subcategorias[m.categoria].productos;
+    } else {
+      contenedorProductos = nodoCategoria.productos;
+    }
+
+    if (!contenedorProductos[m.producto]) {
+      contenedorProductos[m.producto] = { nombre: m.producto, totalesPorMoneda: {}, movimientos: [] };
+    }
+    sumar(contenedorProductos[m.producto], m);
+    contenedorProductos[m.producto].movimientos.push(m);
+  });
+
+  return raiz;
+}
+
+function formatoTotales(totalesPorMoneda) {
+  return Object.entries(totalesPorMoneda)
+    .map(([moneda, monto]) => `$${monto.toFixed(2)} ${moneda}`)
+    .join(" + ");
+}
+
+function renderNodoProducto(producto) {
+  const filas = producto.movimientos
+    .map((m) => {
+      const valor =
+        m.cantidad_imputada != null ? `${m.cantidad_imputada} ${m.unidad_medida || ""}` : `${m.porcentaje}%`;
+      return `<tr>
+        <td>${m.fecha_emision}</td>
+        <td>${m.proveedor}</td>
+        <td>${valor}</td>
+        <td>$${m.monto_imputado.toFixed(2)} ${m.moneda || "PES"}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `
+    <details class="nodo-arbol nodo-producto">
+      <summary>${producto.nombre} <span class="total-nodo">${formatoTotales(producto.totalesPorMoneda)}</span></summary>
+      <table class="tabla-anidada">
+        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Cantidad / %</th><th>Monto</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </details>`;
+}
+
+function renderNodoSubcategoria(sub) {
+  const productosHtml = Object.values(sub.productos).map(renderNodoProducto).join("");
+  return `
+    <details class="nodo-arbol nodo-subcategoria">
+      <summary>↳ ${sub.nombre} <span class="total-nodo">${formatoTotales(sub.totalesPorMoneda)}</span></summary>
+      ${productosHtml}
+    </details>`;
+}
+
+function renderNodoCategoria(cat) {
+  const subHtml = Object.values(cat.subcategorias).map(renderNodoSubcategoria).join("");
+  const prodHtml = Object.values(cat.productos).map(renderNodoProducto).join("");
+  return `
+    <details class="nodo-arbol nodo-categoria" open>
+      <summary>${cat.nombre} <span class="total-nodo">${formatoTotales(cat.totalesPorMoneda)}</span></summary>
+      ${subHtml}
+      ${prodHtml}
+    </details>`;
 }
 
 document.getElementById("btn-crear-objeto").addEventListener("click", async () => {
