@@ -34,6 +34,7 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
 
     let textoCompleto = "";
     qrDetectado = null;
+    let primeraPaginaImagenBase64 = null;
 
     for (let numPagina = 1; numPagina <= pdf.numPages; numPagina++) {
       const pagina = await pdf.getPage(numPagina);
@@ -51,6 +52,13 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d");
         await pagina.render({ canvasContext: ctx, viewport }).promise;
+
+        // guardamos la imagen de la primera página por si el PDF no tiene
+        // texto real (algunos sistemas de facturación "dibujan" todo como
+        // imagen) y hay que mandársela a la IA en vez de texto
+        if (!primeraPaginaImagenBase64) {
+          primeraPaginaImagenBase64 = canvas.toDataURL("image/png").split(",")[1];
+        }
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const resultado = jsQR(imageData.data, imageData.width, imageData.height);
@@ -85,6 +93,7 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
             texto: textoCompleto,
             importe_total_qr: qrDetectado?.importe || null,
             moneda: qrDetectado?.moneda || "PES",
+            imagen_base64: primeraPaginaImagenBase64,
           }),
         });
 

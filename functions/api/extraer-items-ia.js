@@ -1,14 +1,19 @@
 // POST /api/extraer-items-ia
-//   body: { texto, importe_total_qr, moneda }
+//   body: { texto, importe_total_qr, moneda, imagen_base64? }
 //
 // Se usa como respaldo automático cuando el detector rápido (heurística
 // local, gratis) no logra que la suma de los ítems coincida con el
 // importe total real de la factura (que viene del QR de AFIP, siempre
 // confiable). Usa Gemini (tier gratuito de Google AI Studio).
+//
+// Si además se manda "imagen_base64" (la primera página del PDF
+// renderizada), Gemini puede leerla directamente como una imagen — esto
+// es necesario para PDFs que no tienen texto real (algunos sistemas de
+// facturación "dibujan" todo como imágenes en vez de texto seleccionable).
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { texto, importe_total_qr, moneda } = await request.json();
+    const { texto, importe_total_qr, moneda, imagen_base64 } = await request.json();
 
     const apiKey = env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -19,9 +24,17 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    const prompt = `Sos un asistente que extrae la tabla de ítems (productos o servicios) de una factura argentina, a partir de su texto plano ya extraído del PDF.
+    const hayTextoUtil = texto && texto.replace(/\s/g, "").length > 20;
 
-Del siguiente texto, identificá cada ítem facturado y devolvé SOLO un JSON (sin texto adicional, sin bloques de código markdown) con esta forma exacta:
+    const prompt = `Sos un asistente que extrae la tabla de ítems (productos o servicios) de una factura argentina.
+
+${
+  hayTextoUtil
+    ? "Tenés el texto ya extraído del PDF más abajo."
+    : "El PDF no tiene texto seleccionable (está compuesto por imágenes), así que se te adjunta una imagen de la factura — leé el texto directamente de la imagen, como si fuera OCR."
+}
+
+Identificá cada ítem facturado y devolvé SOLO un JSON (sin texto adicional, sin bloques de código markdown) con esta forma exacta:
 
 {
   "items": [
@@ -36,19 +49,20 @@ Reglas:
 - "cantidad" y "precio_unitario" son números (no texto). Usá punto como separador decimal, nunca coma.
 - Si una línea de ítem no muestra cantidad explícita, asumí 1.
 - Ignorá por completo los párrafos de texto legal, condiciones de pago, datos de cliente o proveedor, vencimientos, y cualquier texto que no sea una línea de producto o servicio facturado.
-- El importe total real de esta factura es ${importe_total_qr} ${moneda || ""}. Usalo como referencia para verificar tu propia extracción antes de responder.
+- El importe total real de esta factura es ${importe_total_qr} ${moneda || ""}. Usalo como referencia para verificar tu propia extracción antes de responder — la suma de "subtotal_con_iva" de todos los ítems tiene que dar ese número.
+${hayTextoUtil ? `\nTexto de la factura:\n---\n${texto}\n---` : ""}`;
 
-Texto de la factura:
----
-${texto}
----`;
+    const parts = [{ text: prompt }];
+    if (imagen_base64) {
+      parts.push({ inline_data: { mime_type: "image/png", data: imagen_base64 } });
+    }
 
     const respuestaIA = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({ contents: [{ parts }] }),
       }
     );
 
