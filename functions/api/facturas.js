@@ -70,8 +70,8 @@ export async function onRequestPost({ request, env }) {
       factura = await env.DB
         .prepare(
           `INSERT INTO facturas (proveedor_id, tipo_cbte, punto_venta, numero, fecha_emision,
-                                  cae, moneda, total, origen_extraccion, archivo_url)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+                                  cae, moneda, tipo_cambio, total, origen_extraccion, archivo_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
         )
         .bind(
           proveedorId,
@@ -81,6 +81,7 @@ export async function onRequestPost({ request, env }) {
           formatearFechaAfip(qr.fecha),
           qr.codAut || null,
           qr.moneda || "PES",
+          qr.ctz || null,
           qr.importe || 0,
           items && items.length ? "qr" : "qr_items_pendientes",
           archivo_key || null

@@ -10,7 +10,7 @@ export async function onRequestGet({ env, params }) {
 
   const facturas = await env.DB
     .prepare(
-      `SELECT id, tipo_cbte, punto_venta, numero, fecha_emision, total, estado_pago
+      `SELECT id, tipo_cbte, punto_venta, numero, fecha_emision, total, estado_pago, moneda, tipo_cambio
        FROM facturas WHERE proveedor_id = ? ORDER BY fecha_emision DESC`
     )
     .bind(proveedorId)

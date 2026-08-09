@@ -199,6 +199,8 @@ function completarCabeceraDesdeQr(qr) {
   document.getElementById("f-fecha").value = formatearFechaAfip(qr.fecha);
   document.getElementById("f-total").value = qr.importe || "";
   document.getElementById("f-cae").value = qr.codAut || "";
+  document.getElementById("f-moneda").value = qr.moneda || "PES";
+  document.getElementById("f-tc").value = qr.ctz || "";
 }
 
 // --- detección "mejor esfuerzo" de ítems a partir del texto plano ---
@@ -335,7 +337,8 @@ document.getElementById("btn-guardar-factura").addEventListener("click", async (
       fecha: document.getElementById("f-fecha").value.trim(),
       importe: parseFloat(document.getElementById("f-total").value) || 0,
       codAut: document.getElementById("f-cae").value.trim(),
-      moneda: "PES",
+      moneda: document.getElementById("f-moneda").value.trim() || "PES",
+      ctz: parseFloat(document.getElementById("f-tc").value) || null,
     };
     // el backend mapea tipoCmp numérico -> código AFIP; si ya viene como
     // código de 3 dígitos (por edición manual) lo dejamos pasar igual
@@ -917,12 +920,15 @@ async function cargarResumenProveedor(proveedorId) {
        Total pagado: $${data.saldo.total_pagado.toFixed(2)} —
        <strong>Saldo pendiente: $${data.saldo.saldo_pendiente.toFixed(2)}</strong></p>
     <table>
-      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th></tr></thead>
       <tbody>
         ${data.facturas
           .map(
             (f) => `<tr><td>${f.tipo_cbte}</td><td>${f.punto_venta}</td><td>${f.numero}</td>
-                        <td>${f.fecha_emision}</td><td>$${f.total.toFixed(2)}</td><td>${f.estado_pago}</td></tr>`
+                        <td>${f.fecha_emision}</td><td>$${f.total.toFixed(2)}</td>
+                        <td>${f.moneda || "PES"}</td>
+                        <td>${f.tipo_cambio ? f.tipo_cambio : "<span class='hint'>—</span>"}</td>
+                        <td>${f.estado_pago}</td></tr>`
           )
           .join("")}
       </tbody>

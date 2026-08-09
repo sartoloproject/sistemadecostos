@@ -43,6 +43,7 @@ CREATE TABLE facturas (
     cae                 TEXT,
     cae_vencimiento     TEXT,
     moneda              TEXT NOT NULL DEFAULT 'ARS',
+    tipo_cambio         REAL,                   -- cotización usada si la factura está en moneda extranjera
     subtotal_neto       REAL NOT NULL DEFAULT 0,
     total_iva           REAL NOT NULL DEFAULT 0,
     total               REAL NOT NULL DEFAULT 0,
