@@ -70,10 +70,44 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
       completarCabeceraDesdeQr({});
     }
 
-    const itemsDetectados = intentarDetectarItems(textoCompleto);
-    renderizarItems(itemsDetectados);
-
     document.getElementById("bloque-cabecera").style.display = "block";
+
+    let itemsDetectados = intentarDetectarItems(textoCompleto);
+    const resultadoValidacion = validarSumaItems(itemsDetectados, qrDetectado?.importe);
+
+    if (!resultadoValidacion.coincide) {
+      estado.textContent = "Los ítems no coinciden con el total de la factura — probando con IA...";
+      try {
+        const respuestaIA = await fetch("/api/extraer-items-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            texto: textoCompleto,
+            importe_total_qr: qrDetectado?.importe || null,
+            moneda: qrDetectado?.moneda || "PES",
+          }),
+        });
+
+        if (respuestaIA.ok) {
+          const dataIA = await respuestaIA.json();
+          itemsDetectados = dataIA.items;
+          estado.textContent = dataIA.coincide
+            ? "Ítems detectados con IA (formato nuevo para este proveedor) y el total coincide. Revisalos igual antes de guardar."
+            : `⚠ Ni la IA logró que sume el total exacto (detectado $${dataIA.suma_detectada.toFixed(2)} vs factura $${dataIA.total_factura.toFixed(2)}). Revisá y corregí a mano.`;
+        } else {
+          const errorTexto = await respuestaIA.text();
+          estado.textContent = `No se detectaron ítems automáticamente y la IA falló (${errorTexto}). Cargalos a mano.`;
+          itemsDetectados = [];
+        }
+      } catch (errIA) {
+        estado.textContent = "No se pudo contactar el respaldo de IA. Cargá los ítems a mano.";
+        itemsDetectados = [];
+      }
+    } else if (itemsDetectados.length > 0) {
+      estado.textContent += " Ítems detectados automáticamente y el total coincide con la factura.";
+    }
+
+    renderizarItems(itemsDetectados);
   } catch (err) {
     console.error(err);
     estado.textContent = "Error leyendo el PDF: " + err.message;
@@ -183,6 +217,21 @@ function extraerUnidadMedida(linea, coincidencias, cantColumnas) {
     return entre;
   }
   return null;
+}
+
+// Compara lo que detectó el parser local contra el importe real de la
+// factura (del QR, siempre confiable). Si no coincide, es señal de que
+// el formato de este proveedor rompió al detector automático.
+function validarSumaItems(items, importeTotalQr) {
+  if (!importeTotalQr || items.length === 0) {
+    return { coincide: items.length > 0, suma: 0 };
+  }
+
+  const suma = items.reduce((acc, it) => acc + (it.subtotal_con_iva || it.subtotal || 0), 0);
+  const diferencia = Math.abs(suma - importeTotalQr);
+  const coincide = diferencia / importeTotalQr < 0.02; // tolerancia 2%
+
+  return { coincide, suma };
 }
 
 function decodificarQrAfip(contenidoQr) {
