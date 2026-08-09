@@ -586,6 +586,53 @@ document.querySelector('[data-tab="objetos"]').addEventListener("click", () => {
 });
 
 // ============================================================
+// TAB: PENDIENTES DE IMPUTAR
+// ============================================================
+async function cargarPendientes() {
+  const tbody = document.querySelector("#tabla-pendientes tbody");
+  tbody.innerHTML = `<tr><td colspan="7" class="hint">Cargando...</td></tr>`;
+
+  const pendientes = await fetch("/api/items/pendientes").then((r) => r.json());
+
+  if (pendientes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="hint">No hay nada pendiente de imputar — todo está asignado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = pendientes
+    .map(
+      (p) => `
+      <tr>
+        <td>${p.producto}</td>
+        <td>${p.proveedor}</td>
+        <td>${p.punto_venta}-${p.numero}</td>
+        <td>${p.fecha_emision}</td>
+        <td>${p.cantidad_restante_aprox} ${p.unidad_medida || ""}</td>
+        <td>$${p.restante.toFixed(2)} ${p.moneda || "PES"}</td>
+        <td><button type="button" class="btn-ir-a-imputar" data-factura-id="${p.factura_id}">Imputar</button></td>
+      </tr>`
+    )
+    .join("");
+
+  tbody.querySelectorAll(".btn-ir-a-imputar").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const facturaId = btn.dataset.facturaId;
+
+      // cambia a la pestaña "Imputar"
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach((s) => s.classList.remove("active"));
+      document.querySelector('[data-tab="imputar"]').classList.add("active");
+      document.getElementById("tab-imputar").classList.add("active");
+
+      document.getElementById("imp-factura-id").value = facturaId;
+      document.getElementById("btn-cargar-items-imputar").click();
+    });
+  });
+}
+
+document.querySelector('[data-tab="pendientes"]').addEventListener("click", cargarPendientes);
+
+// ============================================================
 // TAB: IMPUTAR
 // ============================================================
 document.getElementById("btn-cargar-items-imputar").addEventListener("click", async () => {
