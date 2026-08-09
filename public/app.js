@@ -27,6 +27,7 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
   const estado = document.getElementById("estado-parseo");
   estado.textContent = "Leyendo el PDF...";
   document.getElementById("bloque-cabecera").style.display = "none";
+  document.getElementById("resultado-guardado").textContent = ""; // limpia confirmación de una carga anterior
 
   try {
     const arrayBuffer = await archivo.arrayBuffer();
