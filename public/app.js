@@ -70,19 +70,23 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
       }
     }
 
+    let importeReferencia = qrDetectado?.importe || null;
+
     if (qrDetectado) {
       estado.textContent = "QR de AFIP detectado. Revisá los datos antes de guardar.";
       completarCabeceraDesdeQr(qrDetectado);
     } else {
-      estado.textContent =
-        "No se pudo leer el QR de AFIP en este PDF. Completá los datos de cabecera a mano.";
-      completarCabeceraDesdeQr({});
+      importeReferencia = extraerTotalDesdeTexto(textoCompleto);
+      estado.textContent = importeReferencia
+        ? "No se pudo leer el QR de AFIP en este PDF, pero se detectó el importe total en el texto. Completá el resto a mano."
+        : "No se pudo leer el QR de AFIP en este PDF. Completá los datos de cabecera a mano.";
+      completarCabeceraDesdeQr({ importe: importeReferencia });
     }
 
     document.getElementById("bloque-cabecera").style.display = "block";
 
     let itemsDetectados = intentarDetectarItems(textoCompleto);
-    const resultadoValidacion = validarSumaItems(itemsDetectados, qrDetectado?.importe);
+    const resultadoValidacion = validarSumaItems(itemsDetectados, importeReferencia);
 
     if (!resultadoValidacion.coincide) {
       estado.textContent = "Los ítems no coinciden con el total de la factura — probando con IA...";
@@ -92,7 +96,7 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             texto: textoCompleto,
-            importe_total_qr: qrDetectado?.importe || null,
+            importe_total_qr: importeReferencia || null,
             moneda: qrDetectado?.moneda || "PES",
             imagen_base64: primeraPaginaImagenBase64,
           }),
@@ -232,9 +236,30 @@ function extraerUnidadMedida(linea, coincidencias, cantColumnas) {
 // Compara lo que detectó el parser local contra el importe real de la
 // factura (del QR, siempre confiable). Si no coincide, es señal de que
 // el formato de este proveedor rompió al detector automático.
+// Cuando no hay QR (facturas viejas, controladores fiscales, etc.) busca
+// el total impreso en el texto como referencia para validar, buscando
+// líneas tipo "Total 816815.00" o "Importe Total: $ 1124238.29".
+function extraerTotalDesdeTexto(texto) {
+  const regexTotal = /(total\s*general|importe\s*total|^\s*total\b)[^\d-]*(-?[\d.,]+)\s*$/im;
+  const lineas = texto.split("\n");
+  let ultimoEncontrado = null;
+
+  for (const linea of lineas) {
+    const m = linea.match(regexTotal);
+    if (m) ultimoEncontrado = aNumero(m[2]);
+  }
+
+  return ultimoEncontrado;
+}
+
 function validarSumaItems(items, importeTotalQr) {
-  if (!importeTotalQr || items.length === 0) {
-    return { coincide: items.length > 0, suma: 0 };
+  if (!importeTotalQr) {
+    // sin QR no hay nada confiable contra qué comparar -> mejor no confiar
+    // a ciegas en la heurística local, pedimos el respaldo de IA
+    return { coincide: false, suma: 0 };
+  }
+  if (items.length === 0) {
+    return { coincide: false, suma: 0 };
   }
 
   const suma = items.reduce((acc, it) => acc + (it.subtotal_con_iva || it.subtotal || 0), 0);
