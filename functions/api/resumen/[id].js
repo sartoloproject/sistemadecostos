@@ -36,11 +36,18 @@ export async function onRequestGet({ env, params }) {
 
   const facturas = await env.DB
     .prepare(
-      `SELECT id, tipo_cbte, punto_venta, numero, fecha_emision, total, estado_pago, moneda, tipo_cambio
-       FROM facturas WHERE proveedor_id = ? ORDER BY fecha_emision DESC`
+      `SELECT f.id, f.tipo_cbte, f.punto_venta, f.numero, f.fecha_emision, f.total, f.estado_pago,
+              f.moneda, f.tipo_cambio,
+              COALESCE((SELECT SUM(pf.monto_aplicado) FROM pago_factura pf WHERE pf.factura_id = f.id), 0) AS total_pagado
+       FROM facturas f WHERE f.proveedor_id = ? ORDER BY f.fecha_emision DESC`
     )
     .bind(proveedorId)
     .all();
+
+  const facturasConSaldo = facturas.results.map((f) => ({
+    ...f,
+    saldo_pendiente: Math.max(0, f.total - f.total_pagado),
+  }));
 
   const notas = await env.DB
     .prepare(
@@ -52,7 +59,7 @@ export async function onRequestGet({ env, params }) {
   return Response.json({
     saldo: saldo || null,
     saldos_por_moneda: saldos,
-    facturas: facturas.results,
+    facturas: facturasConSaldo,
     notas_credito_debito: notas.results,
   });
 }

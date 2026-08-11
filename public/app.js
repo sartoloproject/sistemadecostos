@@ -1036,16 +1036,21 @@ async function cargarResumenProveedor(proveedorId) {
           .join("")}
       </tbody>
     </table>
-    <table>
-      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th></tr></thead>
+    <table id="tabla-facturas-resumen">
+      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th><th>Pendiente</th><th></th><th></th></tr></thead>
       <tbody>
         ${data.facturas
           .map(
-            (f) => `<tr><td>${f.tipo_cbte}</td><td>${f.punto_venta}</td><td>${f.numero}</td>
+            (f) => `<tr data-factura-id="${f.id}">
+                        <td>${f.tipo_cbte}</td><td>${f.punto_venta}</td><td>${f.numero}</td>
                         <td>${f.fecha_emision}</td><td>$${f.total.toFixed(2)}</td>
                         <td>${f.moneda || "PES"}</td>
                         <td>${f.tipo_cambio ? f.tipo_cambio : "<span class='hint'>—</span>"}</td>
-                        <td>${f.estado_pago}</td></tr>`
+                        <td>${f.estado_pago}</td>
+                        <td>$${f.saldo_pendiente.toFixed(2)}</td>
+                        <td>${f.saldo_pendiente > 0 ? `<button type="button" class="btn-pagar-factura" data-factura-id="${f.id}" data-saldo="${f.saldo_pendiente}" data-moneda="${f.moneda || "PES"}">Pagar</button>` : ""}</td>
+                        <td><button type="button" class="btn-ver-pagos" data-factura-id="${f.id}">Ver pagos</button></td>
+                      </tr>`
           )
           .join("")}
       </tbody>
@@ -1090,5 +1095,120 @@ async function cargarResumenProveedor(proveedorId) {
     } else {
       alert("Error: " + (await resp.text()));
     }
+  });
+
+  // --- botón "Pagar": despliega un formulario inline debajo de la factura ---
+  document.querySelectorAll(".btn-pagar-factura").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const facturaId = btn.dataset.facturaId;
+      const filaFactura = document.querySelector(`tr[data-factura-id="${facturaId}"]`);
+      const filaSiguiente = filaFactura.nextElementSibling;
+
+      if (filaSiguiente && filaSiguiente.classList.contains("fila-pago-form")) {
+        filaSiguiente.remove();
+        return;
+      }
+      document.querySelectorAll(".fila-pago-form").forEach((f) => f.remove());
+
+      const hoy = new Date().toISOString().slice(0, 10);
+      const filaForm = document.createElement("tr");
+      filaForm.className = "fila-pago-form";
+      filaForm.innerHTML = `
+        <td colspan="11">
+          <strong>Registrar pago</strong> (${btn.dataset.moneda}) —
+          Monto <input type="number" step="0.01" class="inp-pago-monto" value="${btn.dataset.saldo}" style="width:110px">
+          Fecha <input type="date" class="inp-pago-fecha" value="${hoy}">
+          Medio
+          <select class="inp-pago-medio">
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="cheque">Cheque</option>
+            <option value="otro">Otro</option>
+          </select>
+          Referencia <input type="text" class="inp-pago-referencia" placeholder="opcional" style="width:140px">
+          <button type="button" class="primary btn-confirmar-pago">Confirmar</button>
+        </td>
+      `;
+      filaFactura.after(filaForm);
+
+      filaForm.querySelector(".btn-confirmar-pago").addEventListener("click", async () => {
+        const monto = parseFloat(filaForm.querySelector(".inp-pago-monto").value);
+        const fecha_pago = filaForm.querySelector(".inp-pago-fecha").value;
+        const medio_pago = filaForm.querySelector(".inp-pago-medio").value;
+        const referencia = filaForm.querySelector(".inp-pago-referencia").value.trim();
+
+        if (!monto || monto <= 0) return alert("Ingresá un monto válido");
+        if (!fecha_pago) return alert("Ingresá una fecha");
+
+        const resp = await fetch("/api/pagos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ factura_id: facturaId, monto, fecha_pago, medio_pago, referencia }),
+        });
+
+        if (resp.ok) {
+          cargarResumenProveedor(proveedorId); // refresca saldo y estado
+        } else {
+          alert("Error: " + (await resp.text()));
+        }
+      });
+    });
+  });
+
+  // --- botón "Ver pagos": despliega el historial de pagos de esa factura ---
+  document.querySelectorAll(".btn-ver-pagos").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const facturaId = btn.dataset.facturaId;
+      const filaFactura = document.querySelector(`tr[data-factura-id="${facturaId}"]`);
+      const filaSiguiente = filaFactura.nextElementSibling;
+
+      if (filaSiguiente && filaSiguiente.classList.contains("fila-pagos-historial")) {
+        filaSiguiente.remove();
+        return;
+      }
+      document.querySelectorAll(".fila-pagos-historial").forEach((f) => f.remove());
+
+      const pagos = await fetch(`/api/facturas/${facturaId}/pagos`).then((r) => r.json());
+
+      const filaHist = document.createElement("tr");
+      filaHist.className = "fila-pagos-historial";
+      const celda = document.createElement("td");
+      celda.colSpan = 11;
+
+      if (pagos.length === 0) {
+        celda.innerHTML = `<span class="hint">Todavía no se registró ningún pago para esta factura.</span>`;
+      } else {
+        celda.innerHTML = `
+          <table style="margin:4px 0">
+            <thead><tr><th>Fecha</th><th>Medio</th><th>Referencia</th><th>Monto</th><th></th></tr></thead>
+            <tbody>
+              ${pagos
+                .map(
+                  (p) => `<tr data-pago-id="${p.id}">
+                    <td>${p.fecha_pago}</td><td>${p.medio_pago || ""}</td><td>${p.referencia || ""}</td>
+                    <td>$${p.monto_aplicado.toFixed(2)}</td>
+                    <td><button type="button" class="btn-eliminar-pago" data-pago-id="${p.id}">Eliminar</button></td>
+                  </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+      }
+      filaHist.appendChild(celda);
+      filaFactura.after(filaHist);
+
+      celda.querySelectorAll(".btn-eliminar-pago").forEach((btnEliminar) => {
+        btnEliminar.addEventListener("click", async () => {
+          if (!confirm("¿Eliminar este pago?")) return;
+          const resp = await fetch(`/api/pagos/${btnEliminar.dataset.pagoId}`, { method: "DELETE" });
+          if (resp.ok) {
+            cargarResumenProveedor(proveedorId);
+          } else {
+            alert("Error: " + (await resp.text()));
+          }
+        });
+      });
+    });
   });
 }
