@@ -1,4 +1,5 @@
-// GET /api/facturas/:id/items -> ítems de una factura, con lo ya imputado
+// GET  /api/facturas/:id/items -> ítems de una factura, con lo ya imputado
+// POST /api/facturas/:id/items -> agrega un ítem nuevo a una factura ya guardada
 
 export async function onRequestGet({ env, params }) {
   const { results } = await env.DB
@@ -12,4 +13,36 @@ export async function onRequestGet({ env, params }) {
     .all();
 
   return Response.json(results);
+}
+
+export async function onRequestPost({ request, env, params }) {
+  try {
+    const item = await request.json();
+
+    if (!item.descripcion) {
+      return new Response("'descripcion' es requerida", { status: 400 });
+    }
+
+    const nuevo = await env.DB
+      .prepare(
+        `INSERT INTO factura_items (factura_id, descripcion, cantidad, unidad_medida,
+                                     precio_unitario, alicuota_iva, subtotal, subtotal_con_iva)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+      )
+      .bind(
+        params.id,
+        item.descripcion,
+        item.cantidad || 0,
+        item.unidad_medida || "unidad",
+        item.precio_unitario || 0,
+        item.alicuota_iva ?? 21,
+        item.subtotal || 0,
+        item.subtotal_con_iva || null
+      )
+      .first();
+
+    return Response.json(nuevo, { status: 201 });
+  } catch (error) {
+    return new Response("Error agregando el ítem: " + error.message, { status: 500 });
+  }
 }

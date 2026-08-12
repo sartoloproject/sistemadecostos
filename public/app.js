@@ -1037,7 +1037,7 @@ async function cargarResumenProveedor(proveedorId) {
       </tbody>
     </table>
     <table id="tabla-facturas-resumen">
-      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th><th>Pendiente</th><th></th><th></th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Pto Vta</th><th>Número</th><th>Fecha</th><th>Total</th><th>Moneda</th><th>T.C.</th><th>Estado</th><th>Pendiente</th><th></th><th></th><th></th><th></th></tr></thead>
       <tbody>
         ${data.facturas
           .map(
@@ -1050,6 +1050,8 @@ async function cargarResumenProveedor(proveedorId) {
                         <td>$${f.saldo_pendiente.toFixed(2)}</td>
                         <td>${f.saldo_pendiente > 0 ? `<button type="button" class="btn-pagar-factura" data-factura-id="${f.id}" data-saldo="${f.saldo_pendiente}" data-moneda="${f.moneda || "PES"}">Pagar</button>` : ""}</td>
                         <td><button type="button" class="btn-ver-pagos" data-factura-id="${f.id}">Ver pagos</button></td>
+                        <td><button type="button" class="btn-editar-factura" data-factura-id="${f.id}">Editar</button></td>
+                        <td><button type="button" class="btn-eliminar-factura" data-factura-id="${f.id}">Eliminar</button></td>
                       </tr>`
           )
           .join("")}
@@ -1114,7 +1116,7 @@ async function cargarResumenProveedor(proveedorId) {
       const filaForm = document.createElement("tr");
       filaForm.className = "fila-pago-form";
       filaForm.innerHTML = `
-        <td colspan="11">
+        <td colspan="13">
           <strong>Registrar pago</strong> (${btn.dataset.moneda}) —
           Monto <input type="number" step="0.01" class="inp-pago-monto" value="${btn.dataset.saldo}" style="width:110px">
           Fecha <input type="date" class="inp-pago-fecha" value="${hoy}">
@@ -1173,7 +1175,7 @@ async function cargarResumenProveedor(proveedorId) {
       const filaHist = document.createElement("tr");
       filaHist.className = "fila-pagos-historial";
       const celda = document.createElement("td");
-      celda.colSpan = 11;
+      celda.colSpan = 13;
 
       if (pagos.length === 0) {
         celda.innerHTML = `<span class="hint">Todavía no se registró ningún pago para esta factura.</span>`;
@@ -1211,4 +1213,182 @@ async function cargarResumenProveedor(proveedorId) {
       });
     });
   });
+
+  // --- botón "Eliminar" factura ---
+  document.querySelectorAll(".btn-eliminar-factura").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("¿Eliminar esta factura completa? Se borran también sus ítems e imputaciones.")) return;
+
+      const resp = await fetch(`/api/facturas/${btn.dataset.facturaId}`, { method: "DELETE" });
+      if (resp.ok) {
+        cargarResumenProveedor(proveedorId);
+      } else {
+        alert("Error: " + (await resp.text()));
+      }
+    });
+  });
+
+  // --- botón "Editar" factura: despliega cabecera + ítems editables ---
+  document.querySelectorAll(".btn-editar-factura").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggleEditorFactura(btn.dataset.facturaId, proveedorId);
+    });
+  });
+}
+
+async function toggleEditorFactura(facturaId, proveedorId) {
+  const filaFactura = document.querySelector(`tr[data-factura-id="${facturaId}"]`);
+  const filaSiguiente = filaFactura.nextElementSibling;
+
+  if (filaSiguiente && filaSiguiente.classList.contains("fila-editor-factura")) {
+    filaSiguiente.remove();
+    return;
+  }
+  document.querySelectorAll(".fila-editor-factura, .fila-pago-form, .fila-pagos-historial").forEach((f) =>
+    f.remove()
+  );
+
+  const [factura, items] = await Promise.all([
+    fetch(`/api/facturas/${facturaId}`).then((r) => r.json()),
+    fetch(`/api/facturas/${facturaId}/items`).then((r) => r.json()),
+  ]);
+
+  const filaEditor = document.createElement("tr");
+  filaEditor.className = "fila-editor-factura";
+  const celda = document.createElement("td");
+  celda.colSpan = 13;
+  celda.innerHTML = `
+    <div style="padding:10px;background:#fff;border:1px solid var(--borde);border-radius:8px">
+      <h4 style="margin-top:0">Cabecera</h4>
+      <div class="grid-form">
+        <label>Número <input class="ed-numero" type="text" value="${factura.numero}"></label>
+        <label>Punto de venta <input class="ed-ptovta" type="text" value="${factura.punto_venta}"></label>
+        <label>Tipo comprobante <input class="ed-tipo" type="text" value="${factura.tipo_cbte}"></label>
+        <label>Fecha <input class="ed-fecha" type="text" value="${factura.fecha_emision}"></label>
+        <label>CAE <input class="ed-cae" type="text" value="${factura.cae || ""}"></label>
+        <label>Moneda <input class="ed-moneda" type="text" value="${factura.moneda || "PES"}"></label>
+        <label>Tipo de cambio <input class="ed-tc" type="number" step="0.000001" value="${factura.tipo_cambio || ""}"></label>
+        <label>Total <input class="ed-total" type="number" step="0.01" value="${factura.total}"></label>
+      </div>
+      <button type="button" class="primary btn-guardar-cabecera">Guardar cabecera</button>
+      <div class="resultado-editor-cabecera hint"></div>
+
+      <h4>Ítems</h4>
+      <table class="tabla-editor-items">
+        <thead>
+          <tr><th>Descripción</th><th>Cant.</th><th>Unidad</th><th>Precio</th><th>% IVA</th><th>Subtotal</th><th>Subt. c/IVA</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="btn-agregar-item-editor">+ Agregar ítem</button>
+      <div class="resultado-editor-items hint"></div>
+    </div>
+  `;
+  filaFactura.after(filaEditor);
+
+  const tbodyItems = celda.querySelector(".tabla-editor-items tbody");
+
+  function agregarFilaEditor(item) {
+    const tr = document.createElement("tr");
+    tr.dataset.itemId = item?.id || "";
+    tr.innerHTML = `
+      <td><input class="ei-descripcion" type="text" value="${item?.descripcion || ""}"></td>
+      <td><input class="ei-cantidad" type="number" step="0.0001" value="${item?.cantidad ?? ""}" style="width:70px"></td>
+      <td><input class="ei-unidad" type="text" value="${item?.unidad_medida || "unidad"}" style="width:70px"></td>
+      <td><input class="ei-precio" type="number" step="0.0001" value="${item?.precio_unitario ?? ""}" style="width:90px"></td>
+      <td><input class="ei-iva" type="number" step="0.01" value="${item?.alicuota_iva ?? 21}" style="width:60px"></td>
+      <td><input class="ei-subtotal" type="number" step="0.01" value="${item?.subtotal ?? ""}" style="width:90px"></td>
+      <td><input class="ei-subtotal-con-iva" type="number" step="0.01" value="${item?.subtotal_con_iva ?? ""}" style="width:90px"></td>
+      <td>
+        <button type="button" class="btn-guardar-item-editor">Guardar</button>
+        <button type="button" class="btn-eliminar-item-editor">Eliminar</button>
+      </td>
+    `;
+
+    tr.querySelector(".btn-guardar-item-editor").addEventListener("click", async () => {
+      const datos = {
+        descripcion: tr.querySelector(".ei-descripcion").value.trim(),
+        cantidad: parseFloat(tr.querySelector(".ei-cantidad").value) || 0,
+        unidad_medida: tr.querySelector(".ei-unidad").value.trim() || "unidad",
+        precio_unitario: parseFloat(tr.querySelector(".ei-precio").value) || 0,
+        alicuota_iva: parseFloat(tr.querySelector(".ei-iva").value) || 0,
+        subtotal: parseFloat(tr.querySelector(".ei-subtotal").value) || 0,
+        subtotal_con_iva: parseFloat(tr.querySelector(".ei-subtotal-con-iva").value) || null,
+      };
+
+      const divResultado = celda.querySelector(".resultado-editor-items");
+
+      if (tr.dataset.itemId) {
+        const resp = await fetch(`/api/factura-items/${tr.dataset.itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datos),
+        });
+        divResultado.textContent = resp.ok ? "Ítem actualizado." : "Error: " + (await resp.text());
+      } else {
+        const resp = await fetch(`/api/facturas/${facturaId}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datos),
+        });
+        if (resp.ok) {
+          const nuevo = await resp.json();
+          tr.dataset.itemId = nuevo.id;
+          divResultado.textContent = "Ítem agregado.";
+        } else {
+          divResultado.textContent = "Error: " + (await resp.text());
+        }
+      }
+    });
+
+    tr.querySelector(".btn-eliminar-item-editor").addEventListener("click", async () => {
+      if (!tr.dataset.itemId) {
+        tr.remove(); // fila nueva sin guardar todavía, se borra sin llamar a la API
+        return;
+      }
+      if (!confirm("¿Eliminar este ítem?")) return;
+
+      const resp = await fetch(`/api/factura-items/${tr.dataset.itemId}`, { method: "DELETE" });
+      if (resp.ok) {
+        tr.remove();
+      } else {
+        celda.querySelector(".resultado-editor-items").textContent = "Error: " + (await resp.text());
+      }
+    });
+
+    tbodyItems.appendChild(tr);
+  }
+
+  items.forEach((item) => agregarFilaEditor(item));
+
+  celda.querySelector(".btn-agregar-item-editor").addEventListener("click", () => agregarFilaEditor(null));
+
+  celda.querySelector(".btn-guardar-cabecera").addEventListener("click", async () => {
+    const datos = {
+      numero: celda.querySelector(".ed-numero").value.trim(),
+      punto_venta: celda.querySelector(".ed-ptovta").value.trim(),
+      tipo_cbte: celda.querySelector(".ed-tipo").value.trim(),
+      fecha_emision: celda.querySelector(".ed-fecha").value.trim(),
+      cae: celda.querySelector(".ed-cae").value.trim(),
+      moneda: celda.querySelector(".ed-moneda").value.trim(),
+      tipo_cambio: parseFloat(celda.querySelector(".ed-tc").value) || null,
+      total: parseFloat(celda.querySelector(".ed-total").value) || 0,
+    };
+
+    const resp = await fetch(`/api/facturas/${facturaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+
+    const divResultado = celda.querySelector(".resultado-editor-cabecera");
+    if (resp.ok) {
+      divResultado.textContent = "Cabecera actualizada.";
+      cargarResumenProveedor(proveedorId);
+    } else {
+      divResultado.textContent = "Error: " + (await resp.text());
+    }
+  });
+
+  filaEditor.appendChild(celda);
 }
