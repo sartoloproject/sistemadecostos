@@ -1392,3 +1392,76 @@ async function toggleEditorFactura(facturaId, proveedorId) {
 
   filaEditor.appendChild(celda);
 }
+
+// ============================================================
+// TAB: DASHBOARD
+// ============================================================
+const NOMBRES_MES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+function formatoMonedas(lista) {
+  if (!lista || lista.length === 0) return `<span class="hint">$0.00</span>`;
+  return lista.map((l) => `$${l.monto.toFixed(2)} ${l.moneda}`).join(" + ");
+}
+
+async function cargarDashboard() {
+  const contenedor = document.getElementById("dashboard-contenido");
+  contenedor.innerHTML = `<p class="hint">Cargando...</p>`;
+
+  const data = await fetch("/api/dashboard").then((r) => r.json());
+
+  const [anio, mesNum] = data.mes.split("-");
+  const nombreMes = NOMBRES_MES[parseInt(mesNum, 10) - 1];
+
+  // una fila por cada combinación categoría+moneda que ya viene de la API
+  const htmlCategorias = data.gasto_mes_por_categoria.length
+    ? data.gasto_mes_por_categoria
+        .map((c) => {
+          const etiqueta = c.categoria_padre
+            ? `${c.categoria_padre} ↳ ${c.categoria || "Sin categoría"}`
+            : c.categoria || "Sin categoría";
+          return `<div class="dashboard-fila"><span>${etiqueta}</span><span class="valor">$${c.monto.toFixed(2)} ${c.moneda}</span></div>`;
+        })
+        .join("")
+    : `<p class="hint">Todavía no imputaste nada este mes.</p>`;
+
+  const htmlProveedores = data.proveedores_pendientes.length
+    ? data.proveedores_pendientes
+        .map(
+          (p) =>
+            `<div class="dashboard-fila"><span>${p.razon_social}</span><span class="valor">$${p.saldo_pendiente.toFixed(2)} ${p.moneda}</span></div>`
+        )
+        .join("")
+    : `<p class="hint">No hay saldos pendientes.</p>`;
+
+  contenedor.innerHTML = `
+    <p class="hint">Datos de ${nombreMes} ${anio}</p>
+    <div class="dashboard-grid">
+      <div class="dashboard-tarjeta">
+        <h3>Gasto imputado este mes</h3>
+        <div class="dashboard-monto-grande">${formatoMonedas(data.gasto_mes_total_por_moneda)}</div>
+      </div>
+
+      <div class="dashboard-tarjeta">
+        <h3>Pendientes de imputar</h3>
+        <div class="dashboard-monto-grande">${data.pendientes_imputar.cantidad_items}</div>
+        <p class="hint" style="margin:0">ítems — ${formatoMonedas(data.pendientes_imputar.restante_por_moneda)}</p>
+      </div>
+
+      <div class="dashboard-tarjeta">
+        <h3>Gasto del mes por categoría</h3>
+        ${htmlCategorias}
+      </div>
+
+      <div class="dashboard-tarjeta">
+        <h3>Proveedores con saldo pendiente</h3>
+        ${htmlProveedores}
+      </div>
+    </div>
+  `;
+}
+
+document.querySelector('[data-tab="dashboard"]').addEventListener("click", cargarDashboard);
+cargarDashboard(); // se carga también al entrar, porque es la pantalla inicial

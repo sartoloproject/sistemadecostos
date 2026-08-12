@@ -11,7 +11,8 @@
 <header>
   <h1>Gestión de Facturas</h1>
   <nav>
-    <button class="tab-btn active" data-tab="cargar">Cargar factura</button>
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="cargar">Cargar factura</button>
     <button class="tab-btn" data-tab="objetos">Objetos de costo</button>
     <button class="tab-btn" data-tab="imputar">Imputar</button>
     <button class="tab-btn" data-tab="pendientes">Pendientes de imputar</button>
@@ -21,8 +22,14 @@
 
 <main>
 
-  <!-- ===================== TAB: CARGAR FACTURAS ===================== -->
-  <section id="tab-cargar" class="tab-content active">
+  <!-- ===================== TAB: DASHBOARD ===================== -->
+  <section id="tab-dashboard" class="tab-content active">
+    <h2>Dashboard</h2>
+    <div id="dashboard-contenido"><p class="hint">Cargando...</p></div>
+  </section>
+
+  <!-- ===================== TAB: CARGAR FACTURA ===================== -->
+  <section id="tab-cargar" class="tab-content">
     <h2>Cargar factura</h2>
     <p class="hint">Subí el PDF de la factura. El navegador va a leer el código QR de AFIP
       (datos fiscales) y el texto del PDF (para intentar detectar los ítems).
