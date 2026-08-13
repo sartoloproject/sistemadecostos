@@ -1465,3 +1465,118 @@ async function cargarDashboard() {
 
 document.querySelector('[data-tab="dashboard"]').addEventListener("click", cargarDashboard);
 cargarDashboard(); // se carga también al entrar, porque es la pantalla inicial
+
+// ============================================================
+// TAB: EXPORTAR
+// ============================================================
+
+// Arma un CSV (separado por ";" y con BOM UTF-8, para que Excel en
+// configuración regional Argentina lo abra bien de una) y dispara la
+// descarga en el navegador.
+function descargarCsv(filas, columnas, nombreArchivo) {
+  const escaparCelda = (valor) => {
+    const texto = valor === null || valor === undefined ? "" : String(valor);
+    if (texto.includes(";") || texto.includes('"') || texto.includes("\n")) {
+      return `"${texto.replace(/"/g, '""')}"`;
+    }
+    return texto;
+  };
+
+  const encabezado = columnas.map((c) => c.titulo).join(";");
+  const cuerpo = filas
+    .map((fila) => columnas.map((c) => escaparCelda(c.valor(fila))).join(";"))
+    .join("\n");
+
+  const contenido = "\uFEFF" + encabezado + "\n" + cuerpo;
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombreArchivo;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById("btn-exportar-iva").addEventListener("click", async () => {
+  const desde = document.getElementById("exp-desde").value;
+  const hasta = document.getElementById("exp-hasta").value;
+  const divResultado = document.getElementById("exp-resultado-iva");
+
+  if (!desde || !hasta) return alert("Completá las fechas 'Desde' y 'Hasta'");
+
+  divResultado.textContent = "Generando...";
+  const resp = await fetch(`/api/exportar/iva-compras?desde=${desde}&hasta=${hasta}`);
+
+  if (!resp.ok) {
+    divResultado.textContent = "Error: " + (await resp.text());
+    return;
+  }
+
+  const filas = await resp.json();
+  if (filas.length === 0) {
+    divResultado.textContent = "No hay facturas en ese rango de fechas.";
+    return;
+  }
+
+  descargarCsv(
+    filas,
+    [
+      { titulo: "Fecha", valor: (f) => f.fecha_emision },
+      { titulo: "Tipo Cbte", valor: (f) => f.tipo_cbte },
+      { titulo: "Punto de Venta", valor: (f) => f.punto_venta },
+      { titulo: "Número", valor: (f) => f.numero },
+      { titulo: "CUIT Proveedor", valor: (f) => f.cuit },
+      { titulo: "Razón Social", valor: (f) => f.razon_social },
+      { titulo: "Neto Gravado", valor: (f) => f.neto.toFixed(2) },
+      { titulo: "IVA", valor: (f) => f.iva.toFixed(2) },
+      { titulo: "Total", valor: (f) => f.total_con_iva.toFixed(2) },
+      { titulo: "Moneda", valor: (f) => f.moneda || "PES" },
+      { titulo: "CAE", valor: (f) => f.cae },
+    ],
+    `libro_iva_compras_${desde}_a_${hasta}.csv`
+  );
+  divResultado.textContent = `Descargado: ${filas.length} facturas.`;
+});
+
+document.getElementById("btn-exportar-imputaciones").addEventListener("click", async () => {
+  const desde = document.getElementById("exp-desde").value;
+  const hasta = document.getElementById("exp-hasta").value;
+  const divResultado = document.getElementById("exp-resultado-imputaciones");
+
+  if (!desde || !hasta) return alert("Completá las fechas 'Desde' y 'Hasta'");
+
+  divResultado.textContent = "Generando...";
+  const resp = await fetch(`/api/exportar/imputaciones?desde=${desde}&hasta=${hasta}`);
+
+  if (!resp.ok) {
+    divResultado.textContent = "Error: " + (await resp.text());
+    return;
+  }
+
+  const filas = await resp.json();
+  if (filas.length === 0) {
+    divResultado.textContent = "No hay imputaciones en ese rango de fechas.";
+    return;
+  }
+
+  descargarCsv(
+    filas,
+    [
+      { titulo: "Fecha Imputación", valor: (f) => f.fecha_imputacion },
+      { titulo: "Fecha Factura", valor: (f) => f.fecha_emision },
+      { titulo: "Proveedor", valor: (f) => f.proveedor },
+      { titulo: "Producto", valor: (f) => f.producto },
+      { titulo: "Categoría", valor: (f) => (f.categoria_padre ? `${f.categoria_padre} > ${f.categoria}` : f.categoria || "") },
+      { titulo: "Objeto de Costo", valor: (f) => `[${f.objeto_tipo}] ${f.objeto_nombre}` },
+      { titulo: "Cantidad", valor: (f) => (f.cantidad_imputada != null ? `${f.cantidad_imputada} ${f.unidad_medida || ""}` : "") },
+      { titulo: "Porcentaje", valor: (f) => (f.porcentaje != null ? `${f.porcentaje}%` : "") },
+      { titulo: "Monto", valor: (f) => f.monto_imputado.toFixed(2) },
+      { titulo: "Moneda", valor: (f) => f.moneda || "PES" },
+    ],
+    `detalle_imputaciones_${desde}_a_${hasta}.csv`
+  );
+  divResultado.textContent = `Descargado: ${filas.length} imputaciones.`;
+});

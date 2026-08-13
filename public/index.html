@@ -17,6 +17,7 @@
     <button class="tab-btn" data-tab="imputar">Imputar</button>
     <button class="tab-btn" data-tab="pendientes">Pendientes de imputar</button>
     <button class="tab-btn" data-tab="resumen">Resumen por proveedor</button>
+    <button class="tab-btn" data-tab="exportar">Exportar</button>
   </nav>
 </header>
 
@@ -152,6 +153,27 @@
     <div id="res-resultados-busqueda" style="display:none"></div>
     <div id="res-proveedor-seleccionado" class="hint"></div>
     <div id="resumen-resultado"></div>
+  </section>
+
+  <!-- ===================== TAB: EXPORTAR ===================== -->
+  <section id="tab-exportar" class="tab-content">
+    <h2>Exportar</h2>
+    <p class="hint">Elegí el rango de fechas y descargá los reportes en CSV (se abren directo en Excel).</p>
+
+    <div class="grid-form">
+      <label>Desde <input id="exp-desde" type="date"></label>
+      <label>Hasta <input id="exp-hasta" type="date"></label>
+    </div>
+
+    <h3>Libro de IVA compras</h3>
+    <p class="hint">Neto, IVA y total por factura — filtrado por fecha de emisión. Lo que suele pedir el contador.</p>
+    <button id="btn-exportar-iva" type="button" class="primary">Descargar CSV</button>
+    <div id="exp-resultado-iva" class="hint"></div>
+
+    <h3>Detalle de imputaciones</h3>
+    <p class="hint">Cada imputación con su producto, proveedor, categoría y objeto de costo — filtrado por fecha en que se imputó.</p>
+    <button id="btn-exportar-imputaciones" type="button" class="primary">Descargar CSV</button>
+    <div id="exp-resultado-imputaciones" class="hint"></div>
   </section>
 
 </main>
