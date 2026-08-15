@@ -65,6 +65,16 @@ export async function onRequestPost({ request, env }) {
 
     // 2. Insertar factura
     const tipoCbte = TIPO_CBTE_AFIP[qr.tipoCmp] || String(qr.tipoCmp);
+
+    // si es un código de comprobante que todavía no conocemos (facturas
+    // electrónicas estándar sí están precargadas, pero tickets de
+    // controlador fiscal u otros formatos raros pueden traer códigos
+    // fuera de esa lista), lo registramos sobre la marcha para no
+    // rechazar la factura por una restricción de integridad referencial
+    await env.DB
+      .prepare("INSERT OR IGNORE INTO tipos_comprobante (codigo, descripcion) VALUES (?, ?)")
+      .bind(tipoCbte, `Código ${tipoCbte}`)
+      .run();
     let factura;
     try {
       factura = await env.DB
