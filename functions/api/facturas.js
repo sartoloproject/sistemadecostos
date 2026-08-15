@@ -88,10 +88,17 @@ export async function onRequestPost({ request, env }) {
         )
         .first();
     } catch (e) {
-      return new Response(
-        "Esta factura ya estaba cargada (mismo proveedor, tipo, punto de venta y número).",
-        { status: 409 }
-      );
+      // solo es "ya estaba cargada" si el error es específicamente por la
+      // restricción UNIQUE (proveedor+tipo+punto de venta+número); para
+      // cualquier otro error, mostramos el motivo real en vez de ocultarlo
+      const esDuplicado = /UNIQUE constraint failed/i.test(e.message);
+      if (esDuplicado) {
+        return new Response(
+          "Esta factura ya estaba cargada (mismo proveedor, tipo, punto de venta y número).",
+          { status: 409 }
+        );
+      }
+      return new Response("Error insertando la factura: " + e.message, { status: 500 });
     }
 
     // 3. Insertar ítems
