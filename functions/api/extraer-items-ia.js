@@ -46,10 +46,11 @@ Reglas:
 - "subtotal" es el importe SIN IVA (neto) de esa línea.
 - "subtotal_con_iva" es el importe CON IVA de esa línea. Si la factura no lo muestra separado por ítem, calculalo: subtotal * (1 + alicuota_iva/100).
 - Si la factura no discrimina alícuota de IVA por ítem, sino que aplica una única alícuota global (mostrada al pie de la factura), usá esa misma alícuota en "alicuota_iva" para todos los ítems.
+- IMPORTANTE — cargos que NO son productos aparte: algunas facturas (sobre todo de combustibles) tienen líneas de "Impuesto Interno", "Impuesto interno a nivel ítem", "Otros tributos", o ajustes como "Dto. por redondeo". Estos NO son ítems nuevos — sumalos (o restalos, si es un descuento) al "subtotal_con_iva" del ítem real al que corresponden. Nunca crees un ítem separado solo para un impuesto o un ajuste de redondeo.
 - "cantidad" y "precio_unitario" son números (no texto). Usá punto como separador decimal, nunca coma.
 - Si una línea de ítem no muestra cantidad explícita, asumí 1.
 - Ignorá por completo los párrafos de texto legal, condiciones de pago, datos de cliente o proveedor, vencimientos, y cualquier texto que no sea una línea de producto o servicio facturado.
-- El importe total real de esta factura es ${importe_total_qr} ${moneda || ""}. Usalo como referencia para verificar tu propia extracción antes de responder — la suma de "subtotal_con_iva" de todos los ítems tiene que dar ese número.
+- El importe total real de esta factura es ${importe_total_qr} ${moneda || ""}. Usalo como referencia para verificar tu propia extracción antes de responder — la suma de "subtotal_con_iva" de todos los ítems tiene que dar ese número exacto, incluyendo cualquier impuesto interno o ajuste de redondeo ya incorporado al ítem correspondiente.
 ${hayTextoUtil ? `\nTexto de la factura:\n---\n${texto}\n---` : ""}`;
 
     const parts = [{ text: prompt }];
@@ -97,7 +98,8 @@ ${hayTextoUtil ? `\nTexto de la factura:\n---\n${texto}\n---` : ""}`;
 
     const total = importe_total_qr || 0;
     const diferencia = Math.abs(sumaDetectada - total);
-    const coincide = total > 0 ? diferencia / total < 0.02 : true; // tolerancia 2%
+    const sinReferencia = total <= 0; // no había QR ni total detectado en el texto para comparar
+    const coincide = sinReferencia ? false : diferencia / total < 0.02; // tolerancia 2%
 
     return Response.json({
       items,
@@ -105,6 +107,7 @@ ${hayTextoUtil ? `\nTexto de la factura:\n---\n${texto}\n---` : ""}`;
       total_factura: total,
       diferencia,
       coincide,
+      sin_referencia: sinReferencia,
     });
   } catch (error) {
     return new Response("Error interno en extracción por IA: " + error.message, { status: 500 });

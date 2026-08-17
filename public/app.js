@@ -105,9 +105,14 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
         if (respuestaIA.ok) {
           const dataIA = await respuestaIA.json();
           itemsDetectados = dataIA.items;
-          estado.textContent = dataIA.coincide
-            ? "Ítems detectados con IA (formato nuevo para este proveedor) y el total coincide. Revisalos igual antes de guardar."
-            : `⚠ Ni la IA logró que sume el total exacto (detectado $${dataIA.suma_detectada.toFixed(2)} vs factura $${dataIA.total_factura.toFixed(2)}). Revisá y corregí a mano.`;
+          if (dataIA.sin_referencia) {
+            estado.textContent =
+              "⚠ Ítems detectados con IA, pero no había QR ni total en el texto para validar la suma — revisalos con cuidado, sobre todo si la factura tiene impuestos internos o descuentos.";
+          } else {
+            estado.textContent = dataIA.coincide
+              ? "Ítems detectados con IA (formato nuevo para este proveedor) y el total coincide. Revisalos igual antes de guardar."
+              : `⚠ Ni la IA logró que sume el total exacto (detectado $${dataIA.suma_detectada.toFixed(2)} vs factura $${dataIA.total_factura.toFixed(2)}). Revisá y corregí a mano.`;
+          }
         } else {
           const errorTexto = await respuestaIA.text();
           estado.textContent = `No se detectaron ítems automáticamente y la IA falló (${errorTexto}). Cargalos a mano.`;
