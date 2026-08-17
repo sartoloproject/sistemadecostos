@@ -91,15 +91,13 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
     if (!resultadoValidacion.coincide) {
       estado.textContent = "Los ítems no coinciden con el total de la factura — probando con IA...";
       try {
-        const respuestaIA = await fetch("/api/extraer-items-ia", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            texto: textoCompleto,
-            importe_total_qr: importeReferencia || null,
-            moneda: qrDetectado?.moneda || "PES",
-            imagen_base64: primeraPaginaImagenBase64,
-          }),
+        const respuestaIA = await llamarExtraerItemsIA({
+          texto: textoCompleto,
+          importe_total_qr: importeReferencia || null,
+          moneda: qrDetectado?.moneda || "PES",
+          imagen_base64: primeraPaginaImagenBase64,
+        }, (intento) => {
+          estado.textContent = `La IA no respondió, reintentando (intento ${intento})...`;
         });
 
         if (respuestaIA.ok) {
@@ -115,11 +113,11 @@ document.getElementById("input-pdf").addEventListener("change", async (e) => {
           }
         } else {
           const errorTexto = await respuestaIA.text();
-          estado.textContent = `No se detectaron ítems automáticamente y la IA falló (${errorTexto}). Cargalos a mano.`;
+          estado.textContent = `No se detectaron ítems automáticamente y la IA falló (${errorTexto}). Probá subir el PDF de nuevo, o cargalos a mano.`;
           itemsDetectados = [];
         }
       } catch (errIA) {
-        estado.textContent = "No se pudo contactar el respaldo de IA. Cargá los ítems a mano.";
+        estado.textContent = "No se pudo contactar el respaldo de IA (probá subir el PDF de nuevo). Cargá los ítems a mano.";
         itemsDetectados = [];
       }
     } else if (itemsDetectados.length > 0) {
@@ -272,6 +270,28 @@ function validarSumaItems(items, importeTotalQr) {
   const coincide = diferencia / importeTotalQr < 0.02; // tolerancia 2%
 
   return { coincide, suma };
+}
+
+// Llama al respaldo de IA con un reintento automático: los servicios
+// externos a veces fallan de forma pasajera (timeout, cold start, etc.),
+// así que antes de rendirse prueba una segunda vez.
+async function llamarExtraerItemsIA(body, avisoReintento) {
+  const intentar = () =>
+    fetch("/api/extraer-items-ia", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  try {
+    const primerIntento = await intentar();
+    if (primerIntento.ok) return primerIntento;
+  } catch (e) {
+    // sigue al reintento
+  }
+
+  if (avisoReintento) avisoReintento(2);
+  return intentar(); // si esta también falla, el error se maneja donde se llamó
 }
 
 function decodificarQrAfip(contenidoQr) {
@@ -1584,4 +1604,4 @@ document.getElementById("btn-exportar-imputaciones").addEventListener("click", a
     `detalle_imputaciones_${desde}_a_${hasta}.csv`
   );
   divResultado.textContent = `Descargado: ${filas.length} imputaciones.`;
-});
+});G
