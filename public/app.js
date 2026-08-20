@@ -889,6 +889,7 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
 
     tr.innerHTML = `
       <td>${item.descripcion}</td>
+      <td><strong>${item.cantidad}</strong> ${item.unidad_medida || "unidad"}</td>
       <td>${baseTotal.toFixed(2)}</td>
       <td>${item.monto_ya_imputado.toFixed(2)}</td>
       <td class="celda-estado">${estadoHtml}</td>
@@ -900,9 +901,6 @@ document.getElementById("btn-cargar-items-imputar").addEventListener("click", as
           <option value="cantidad">${item.unidad_medida || "unidad"}</option>
           <option value="porcentaje">%</option>
         </select>
-        <div style="color:#6b6f6a;font-size:11.5px;margin-top:2px">
-          de ${item.cantidad} ${item.unidad_medida || "unidad"} en total
-        </div>
       </td>
       <td><button type="button" class="btn-imputar">Imputar</button></td>
       <td><button type="button" class="btn-historial">Historial</button></td>
@@ -958,7 +956,7 @@ async function toggleHistorial(filaItem, item) {
   const filaHistorial = document.createElement("tr");
   filaHistorial.className = "fila-historial";
   const celda = document.createElement("td");
-  celda.colSpan = 9;
+  celda.colSpan = 10;
   celda.innerHTML = "Cargando historial...";
   filaHistorial.appendChild(celda);
   filaItem.after(filaHistorial);
