@@ -85,7 +85,9 @@
           <option value="vehiculo">Vehículo</option>
           <option value="lote">Lote de campo</option>
           <option value="gasto_general">Gasto general</option>
+          <option value="__nuevo__">+ Otro tipo nuevo...</option>
         </select>
+        <input id="oc-tipo-nuevo" type="text" placeholder="Escribí el tipo nuevo" style="display:none;margin-top:6px">
       </label>
       <label>Nombre <input id="oc-nombre" type="text" placeholder="ej: Tractor John Deere 6110J"></label>
       <label>Identificador <input id="oc-identificador" type="text" placeholder="patente / nro interno / código de lote"></label>
@@ -94,7 +96,7 @@
 
     <h3>Listado</h3>
     <table id="tabla-objetos">
-      <thead><tr><th>Tipo</th><th>Nombre</th><th>Identificador</th><th></th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Nombre</th><th>Identificador</th><th></th><th></th><th></th></tr></thead>
       <tbody></tbody>
     </table>
 

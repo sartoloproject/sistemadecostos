@@ -507,17 +507,103 @@ async function cargarObjetosCosto() {
   tbody.innerHTML = "";
   objetos.forEach((o) => {
     const tr = document.createElement("tr");
+    tr.dataset.objetoId = o.id;
     tr.innerHTML = `
       <td>${o.tipo}</td><td>${o.nombre}</td><td>${o.identificador || ""}</td>
       <td><button type="button" class="btn-ver-movimientos">Ver movimientos</button></td>
+      <td><button type="button" class="btn-editar-objeto">Editar</button></td>
+      <td><button type="button" class="btn-eliminar-objeto">Eliminar</button></td>
     `;
     tr.querySelector(".btn-ver-movimientos").addEventListener("click", () => {
       verMovimientosObjeto(o.id, o.nombre);
     });
+    tr.querySelector(".btn-editar-objeto").addEventListener("click", () => {
+      toggleEditorObjetoCosto(tr, o);
+    });
+    tr.querySelector(".btn-eliminar-objeto").addEventListener("click", async () => {
+      if (!confirm(`¿Eliminar "${o.nombre}"?`)) return;
+      const respDelete = await fetch(`/api/objetos-costo/${o.id}`, { method: "DELETE" });
+      if (respDelete.ok) {
+        cargarObjetosCosto();
+      } else {
+        alert("Error: " + (await respDelete.text()));
+      }
+    });
     tbody.appendChild(tr);
   });
+
+  actualizarOpcionesTipoObjeto(objetos);
   return objetos;
 }
+
+function toggleEditorObjetoCosto(filaObjeto, objeto) {
+  const filaSiguiente = filaObjeto.nextElementSibling;
+  if (filaSiguiente && filaSiguiente.classList.contains("fila-editor-objeto")) {
+    filaSiguiente.remove();
+    return;
+  }
+  document.querySelectorAll(".fila-editor-objeto").forEach((f) => f.remove());
+
+  const filaEditor = document.createElement("tr");
+  filaEditor.className = "fila-editor-objeto";
+  filaEditor.innerHTML = `
+    <td colspan="6">
+      Tipo <input class="eo-tipo" type="text" value="${objeto.tipo}" style="width:120px">
+      Nombre <input class="eo-nombre" type="text" value="${objeto.nombre}" style="width:200px">
+      Identificador <input class="eo-identificador" type="text" value="${objeto.identificador || ""}" style="width:140px">
+      <button type="button" class="primary btn-guardar-objeto">Guardar</button>
+      <span class="resultado-editor-objeto hint"></span>
+    </td>
+  `;
+  filaObjeto.after(filaEditor);
+
+  filaEditor.querySelector(".btn-guardar-objeto").addEventListener("click", async () => {
+    const datos = {
+      tipo: filaEditor.querySelector(".eo-tipo").value.trim(),
+      nombre: filaEditor.querySelector(".eo-nombre").value.trim(),
+      identificador: filaEditor.querySelector(".eo-identificador").value.trim(),
+    };
+
+    if (!datos.nombre) return alert("El nombre no puede quedar vacío");
+
+    const resp = await fetch(`/api/objetos-costo/${objeto.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datos),
+    });
+
+    if (resp.ok) {
+      cargarObjetosCosto();
+    } else {
+      filaEditor.querySelector(".resultado-editor-objeto").textContent = "Error: " + (await resp.text());
+    }
+  });
+}
+
+// Agrega al desplegable cualquier tipo "custom" que ya se haya usado antes
+// (creado con "+ Otro tipo nuevo..."), para no tener que volver a
+// escribirlo cada vez.
+function actualizarOpcionesTipoObjeto(objetos) {
+  const select = document.getElementById("oc-tipo");
+  const tiposFijos = ["maquinaria", "vehiculo", "lote", "gasto_general", "__nuevo__"];
+  const tiposYaListados = new Set([...select.options].map((o) => o.value));
+
+  const tiposCustom = [...new Set(objetos.map((o) => o.tipo))].filter(
+    (t) => !tiposFijos.includes(t) && !tiposYaListados.has(t)
+  );
+
+  const opcionNuevo = select.querySelector('option[value="__nuevo__"]');
+  tiposCustom.forEach((tipo) => {
+    const option = document.createElement("option");
+    option.value = tipo;
+    option.textContent = tipo;
+    select.insertBefore(option, opcionNuevo);
+  });
+}
+
+document.getElementById("oc-tipo").addEventListener("change", (e) => {
+  document.getElementById("oc-tipo-nuevo").style.display = e.target.value === "__nuevo__" ? "block" : "none";
+});
 
 async function verMovimientosObjeto(objetoId, nombreObjeto) {
   const div = document.getElementById("objeto-movimientos-resultado");
@@ -631,10 +717,15 @@ function renderNodoCategoria(cat) {
 }
 
 document.getElementById("btn-crear-objeto").addEventListener("click", async () => {
-  const tipo = document.getElementById("oc-tipo").value;
+  const seleccionTipo = document.getElementById("oc-tipo").value;
+  const tipo =
+    seleccionTipo === "__nuevo__"
+      ? document.getElementById("oc-tipo-nuevo").value.trim().toLowerCase().replace(/\s+/g, "_")
+      : seleccionTipo;
   const nombre = document.getElementById("oc-nombre").value.trim();
   const identificador = document.getElementById("oc-identificador").value.trim();
 
+  if (seleccionTipo === "__nuevo__" && !tipo) return alert("Escribí el nombre del tipo nuevo");
   if (!nombre) return alert("Ingresá un nombre");
 
   await fetch("/api/objetos-costo", {
@@ -645,6 +736,9 @@ document.getElementById("btn-crear-objeto").addEventListener("click", async () =
 
   document.getElementById("oc-nombre").value = "";
   document.getElementById("oc-identificador").value = "";
+  document.getElementById("oc-tipo-nuevo").value = "";
+  document.getElementById("oc-tipo-nuevo").style.display = "none";
+  document.getElementById("oc-tipo").value = "maquinaria";
   cargarObjetosCosto();
 });
 
@@ -1604,4 +1698,4 @@ document.getElementById("btn-exportar-imputaciones").addEventListener("click", a
     `detalle_imputaciones_${desde}_a_${hasta}.csv`
   );
   divResultado.textContent = `Descargado: ${filas.length} imputaciones.`;
-});G
+});
